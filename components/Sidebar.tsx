@@ -3,10 +3,11 @@
 import { useState, useRef } from "react";
 import { useNoteStore } from "@/store/useNoteStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles } from "lucide-react";
+import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles, ShieldCheck } from "lucide-react";
 import LoginModal from "./LoginModal";
 import TherapistManagementModal from "./TherapistManagementModal";
 import MacroManagementModal from "./MacroManagementModal";
+import BackupManagementModal from "./BackupManagementModal";
 import { getDeleteToolbarAction } from "@/lib/progressNoteUi";
 
 export default function Sidebar() {
@@ -38,6 +39,7 @@ export default function Sidebar() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showTherapistModal, setShowTherapistModal] = useState(false);
   const [showMacroModal, setShowMacroModal] = useState(false);
+  const [showBackupModal, setShowBackupModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -200,6 +202,7 @@ export default function Sidebar() {
                 <button onClick={() => { setShowLoginModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"><LogIn size={18} /> 로그인</button>
                 <button onClick={() => { setShowTherapistModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"><UserPlus size={18} /> 치료사 등록 / 관리</button>
                 <button onClick={() => { setShowMacroModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"><Sparkles size={18} /> 매크로 관리 (/도수1~20)</button>
+                <button onClick={() => { setShowBackupModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-cyan-50 hover:text-cyan-700 transition-colors"><ShieldCheck size={18} /> 백업 / 복원</button>
                 <hr className="my-1 border-gray-100" />
                 <button onClick={() => { handleExportData(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"><Download size={18} /> 데이터 내보내기</button>
                 <button onClick={() => { fileInputRef.current?.click(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"><Upload size={18} /> 데이터 가져오기</button>
@@ -299,6 +302,7 @@ export default function Sidebar() {
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
       {showTherapistModal && <TherapistManagementModal onClose={() => setShowTherapistModal(false)} />}
       {showMacroModal && <MacroManagementModal onClose={() => setShowMacroModal(false)} />}
+      {showBackupModal && <BackupManagementModal onClose={() => setShowBackupModal(false)} />}
       <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportData} className="hidden" />
 
       {/* ── 삭제 확인 모달 (1단계) ── */}

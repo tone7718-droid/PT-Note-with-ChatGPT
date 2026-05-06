@@ -28,7 +28,8 @@ function HomeContent() {
 
   // 모바일 환경에서 노트가 변경되면 drawer 자동 닫음 (목록 → 노트 보기 전환)
   useEffect(() => {
-    setMobileSidebarOpen(false);
+    const timer = window.setTimeout(() => setMobileSidebarOpen(false), 0);
+    return () => window.clearTimeout(timer);
   }, [selectedNoteId]);
 
   // drawer 열린 동안 배경 스크롤 잠금

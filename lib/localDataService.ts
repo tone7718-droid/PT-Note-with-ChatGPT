@@ -17,6 +17,12 @@
 
 import type { NoteData, TherapistRecord, Therapist } from "@/types";
 import { hashPassword, verifyPassword } from "@/components/hashUtils";
+import {
+  createBackupPayload,
+  saveAutoBackup,
+  validateBackupPayload,
+  type BackupPayload,
+} from "@/lib/backupService";
 
 /* ── Storage Keys ── */
 const NOTES_KEY = "pt_local_notes";
@@ -167,6 +173,7 @@ export async function upsertNote(note: NoteData): Promise<NoteData> {
 }
 
 export async function deleteNotes(ids: string[]): Promise<void> {
+  await createCurrentAutoBackup();
   const notes = read<NoteData[]>(NOTES_KEY, []);
   write(
     NOTES_KEY,
@@ -280,21 +287,60 @@ export async function updateTherapistPasswordViaAuth(
    ══════════════════════════════════════════ */
 
 export async function exportAllData(): Promise<string> {
-  const notes = read<NoteData[]>(NOTES_KEY, []);
-  const therapists = read<TherapistRecord[]>(THERAPISTS_KEY, []);
-  return JSON.stringify(
-    { version: 2, exportedAt: new Date().toISOString(), notes, therapists },
-    null,
-    2
-  );
+  return JSON.stringify(await buildBackupPayload("manual"), null, 2);
 }
 
 export async function importNotes(notes: NoteData[]): Promise<number> {
   if (notes.length === 0) return 0;
+  await createCurrentAutoBackup();
   const existing = read<NoteData[]>(NOTES_KEY, []);
   const existingIds = new Set(existing.map((n) => n.id));
   const newOnes = notes.filter((n) => !existingIds.has(n.id));
   if (newOnes.length === 0) return 0;
   write(NOTES_KEY, [...newOnes, ...existing]);
   return newOnes.length;
+}
+
+export async function buildBackupPayload(
+  reason: BackupPayload["reason"] = "manual"
+): Promise<BackupPayload> {
+  return createBackupPayload({
+    notes: read<NoteData[]>(NOTES_KEY, []),
+    therapists: read<TherapistRecord[]>(THERAPISTS_KEY, []),
+    reason,
+  });
+}
+
+export async function createCurrentAutoBackup(): Promise<void> {
+  const payload = await buildBackupPayload("auto");
+  if (payload.notes.length === 0 && payload.therapists.length === 0) return;
+  saveAutoBackup(payload);
+}
+
+export async function importBackupPayload(payload: BackupPayload): Promise<{
+  notesCount: number;
+  therapistsCount: number;
+}> {
+  validateBackupPayload(payload);
+  await createCurrentAutoBackup();
+
+  const existingNotes = read<NoteData[]>(NOTES_KEY, []);
+  const existingTherapists = read<TherapistRecord[]>(THERAPISTS_KEY, []);
+  const noteIds = new Set(existingNotes.map((n) => n.id));
+  const therapistUids = new Set(existingTherapists.map((t) => t.uid));
+
+  const importedNotes = payload.notes.filter((n) => !noteIds.has(n.id));
+  const importedTherapists = payload.therapists.filter((t) => !therapistUids.has(t.uid));
+
+  if (importedNotes.length > 0) {
+    write(NOTES_KEY, [...importedNotes, ...existingNotes]);
+  }
+  if (importedTherapists.length > 0) {
+    write(THERAPISTS_KEY, [...existingTherapists, ...importedTherapists]);
+  }
+
+  return {
+    notesCount: importedNotes.length,
+    therapistsCount: importedTherapists.length,
+  };
 }

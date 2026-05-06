@@ -228,10 +228,13 @@ export default function BodyDiagram({ value, onChange }: BodyDiagramProps) {
   });
   const isDragging = useRef(false);
   const magnifyRef = useRef(magnify);
-  magnifyRef.current = magnify;
 
   const svgAntRef = useRef<SVGSVGElement>(null);
   const svgPostRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    magnifyRef.current = magnify;
+  }, [magnify]);
 
   // 돋보기 활성 시 페이지 스크롤 방지
   useEffect(() => {

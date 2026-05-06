@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import * as ds from "@/lib/localDataService";
+import { listAutoBackups } from "@/lib/backupService";
 import type { NoteData } from "@/types";
 
 const sampleNote = (overrides: Partial<NoteData> = {}): NoteData => ({
@@ -107,6 +108,36 @@ describe("localDataService — notes CRUD", () => {
     await ds.upsertNote(sampleNote({ id: "a" }));
     await ds.deleteNotes(["does-not-exist"]);
     expect(await ds.fetchNotes()).toHaveLength(1);
+  });
+
+  it("deleteNotes stores an automatic backup before removing notes", async () => {
+    await ds.upsertNote(sampleNote({ id: "a" }));
+    await ds.deleteNotes(["a"]);
+
+    expect(await ds.fetchNotes()).toHaveLength(0);
+    const backups = listAutoBackups();
+    expect(backups).toHaveLength(1);
+    expect(backups[0].payload.notes.map((n) => n.id)).toEqual(["a"]);
+  });
+
+  it("importBackupPayload merges notes and therapists without duplicating existing ids", async () => {
+    await ds.upsertNote(sampleNote({ id: "existing" }));
+    const payload = await ds.buildBackupPayload("manual");
+    payload.notes.push(sampleNote({ id: "imported" }));
+    payload.therapists.push({
+      uid: "t1",
+      id: "PT-001",
+      name: "김치료",
+      passwordHash: "hash",
+      role: "therapist",
+      resigned: false,
+    });
+
+    const result = await ds.importBackupPayload(payload);
+
+    expect(result).toEqual({ notesCount: 1, therapistsCount: 1 });
+    expect((await ds.fetchNotes()).map((n) => n.id).sort()).toEqual(["existing", "imported"]);
+    expect((await ds.fetchTherapists()).some((t) => t.uid === "t1")).toBe(true);
   });
 });
 
