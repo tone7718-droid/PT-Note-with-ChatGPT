@@ -7,6 +7,7 @@ import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight,
 import LoginModal from "./LoginModal";
 import TherapistManagementModal from "./TherapistManagementModal";
 import MacroManagementModal from "./MacroManagementModal";
+import { getDeleteToolbarAction } from "@/lib/progressNoteUi";
 
 export default function Sidebar() {
   const notes = useNoteStore((s) => s.notes);
@@ -117,7 +118,29 @@ export default function Sidebar() {
   const resignedGroups = getResignedTherapistNotes();
   const activeTherapists = therapists.filter((t) => !t.resigned && t.role !== "master");
 
+  const handleDeleteToolbarClick = () => {
+    const action = getDeleteToolbarAction({
+      isDeleteMode,
+      selectedCount: selectedIds.length,
+    });
+
+    if (action === "enter") {
+      setIsDeleteMode(true);
+      setSelectedIds([]);
+      return;
+    }
+
+    if (action === "exit") {
+      setIsDeleteMode(false);
+      setSelectedIds([]);
+      return;
+    }
+
+    setShowDeleteModal(true);
+  };
+
   const handleDeleteStep1Confirm = () => {
+    if (selectedIds.length === 0) return;
     setShowDeleteModal(false);
     setShowPwConfirm(true);
     setDeletePw("");
@@ -210,7 +233,15 @@ export default function Sidebar() {
         <div className="px-4 pt-2 pb-1 flex justify-between items-center">
           <h3 className="text-xs font-bold text-gray-500">최신 치료 내역</h3>
           {filteredNotes.length > 0 && (
-            <button onClick={() => { setIsDeleteMode(!isDeleteMode); setSelectedIds([]); }} className={`p-1.5 rounded-md transition-colors ${isDeleteMode ? "text-red-600 bg-red-50" : "text-gray-400 hover:bg-gray-200"}`} aria-label="삭제 모드 전환" title="삭제 모드 전환"><Trash2 size={16} /></button>
+            <button
+              type="button"
+              onClick={handleDeleteToolbarClick}
+              className={`p-1.5 rounded-md transition-colors ${isDeleteMode ? "text-red-600 bg-red-50" : "text-gray-400 hover:bg-gray-200"}`}
+              aria-label={isDeleteMode && selectedIds.length > 0 ? "선택한 기록 삭제" : "삭제 모드 전환"}
+              title={isDeleteMode && selectedIds.length > 0 ? "선택한 기록 삭제" : "삭제 모드 전환"}
+            >
+              <Trash2 size={16} />
+            </button>
           )}
         </div>
 

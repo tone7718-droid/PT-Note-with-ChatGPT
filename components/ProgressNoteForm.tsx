@@ -9,6 +9,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas-pro";
 import { Save, X as XIcon, Clock, Copy } from "lucide-react";
 import { loadDraft, saveDraft, clearDraft, isNoteContentful, formatRelativeTime, type DraftNoteData } from "@/lib/draftNote";
+import { formatLastDraftSaveLabel, getPdfPageSlices } from "@/lib/progressNoteUi";
 
 import { PatientInfoSection } from "./features/note-form/PatientInfoSection";
 import { ComplaintSection } from "./features/note-form/ComplaintSection";
@@ -40,6 +41,7 @@ export default function ProgressNoteForm() {
   // 자동 임시 저장
   const [pendingDraft, setPendingDraft] = useState<DraftNoteData | null>(null);
   const [autoSaveFlash, setAutoSaveFlash] = useState(false);
+  const [lastDraftSavedAt, setLastDraftSavedAt] = useState<Date | null>(null);
 
   // 노트 복사 (이 노트를 베이스로 새 노트 시작)
   const pendingCopyRef = useRef<NoteData | null>(null);
@@ -76,6 +78,7 @@ export default function ProgressNoteForm() {
         setCurrentNoteId(null);
         setSavedTherapist(null);
         setPendingDraft(null); // 복구 배너 숨김 — 방금 복사 데이터로 채웠으니 draft 와 무관
+        setLastDraftSavedAt(null);
         return;
       }
       // [일반 새 노트 모드]
@@ -86,13 +89,16 @@ export default function ProgressNoteForm() {
       const d = loadDraft();
       if (d && isNoteContentful(d)) {
         setPendingDraft(d);
+        setLastDraftSavedAt(new Date(d.draftSavedAt));
       } else {
         setPendingDraft(null);
+        setLastDraftSavedAt(null);
       }
       return;
     }
     // 기존 노트 편집 모드 → draft 배너 숨김
     setPendingDraft(null);
+    setLastDraftSavedAt(null);
     const note = notes.find((n) => n.id === selectedNoteId);
     if (note) {
       const roms = note.rom && note.rom.length > 0 ? note.rom : [{ joint: "", measuredROM: "", normalRange: "" }];
@@ -110,7 +116,9 @@ export default function ProgressNoteForm() {
     const interval = window.setInterval(() => {
       const data = methods.getValues();
       if (!isNoteContentful(data)) return;
+      const savedAt = new Date();
       saveDraft(data);
+      setLastDraftSavedAt(savedAt);
       setAutoSaveFlash(true);
       window.setTimeout(() => setAutoSaveFlash(false), 1200);
     }, 5000);
@@ -129,6 +137,7 @@ export default function ProgressNoteForm() {
   const discardDraft = () => {
     clearDraft();
     setPendingDraft(null);
+    setLastDraftSavedAt(null);
   };
 
   /* 현재 보고 있는 기존 노트를 베이스로 새 노트 시작 */
@@ -180,6 +189,7 @@ export default function ProgressNoteForm() {
       // 정상 저장 → 임시 저장 정리
       clearDraft();
       setPendingDraft(null);
+      setLastDraftSavedAt(null);
       setTimeout(() => setShowSaved(false), 3000);
     } catch (err) {
       console.error("저장 실패:", err);
@@ -203,34 +213,50 @@ export default function ProgressNoteForm() {
 
     setTimeout(async () => {
       try {
-        const canvas = await html2canvas(containerRef.current!, {
+        const target = containerRef.current!;
+        const canvas = await html2canvas(target, {
           scale: 1.5,
           useCORS: true,
           windowWidth: 800,
+          windowHeight: target.scrollHeight,
+          width: target.scrollWidth,
+          height: target.scrollHeight,
+          scrollX: 0,
+          scrollY: 0,
           backgroundColor: "#ffffff",
         });
-
-        // JPEG 0.85 → PNG 대비 약 1/10 용량 (의무기록 가독성에는 충분)
-        const imgData = canvas.toDataURL("image/jpeg", 0.85);
 
         const pdf = new jsPDF("p", "mm", "a4");
         const pageWidth = pdf.internal.pageSize.getWidth();   // 210mm
         const pageHeight = pdf.internal.pageSize.getHeight(); // 297mm
-        // 캔버스를 A4 폭에 맞췄을 때 총 높이 (mm)
-        const imgTotalHeight = (canvas.height * pageWidth) / canvas.width;
+        const slices = getPdfPageSlices({
+          canvasWidthPx: canvas.width,
+          canvasHeightPx: canvas.height,
+          pageWidthMm: pageWidth,
+          pageHeightMm: pageHeight,
+        });
 
-        // 한 페이지에 들어갈 만큼만 보이고 나머지는 다음 페이지로
-        let heightLeft = imgTotalHeight;
-        let position = 0;
-        pdf.addImage(imgData, "JPEG", 0, position, pageWidth, imgTotalHeight);
-        heightLeft -= pageHeight;
-
-        while (heightLeft > 0) {
-          position -= pageHeight; // 이미지를 위로 스크롤
-          pdf.addPage();
-          pdf.addImage(imgData, "JPEG", 0, position, pageWidth, imgTotalHeight);
-          heightLeft -= pageHeight;
-        }
+        slices.forEach((slice, index) => {
+          if (index > 0) pdf.addPage();
+          const pageCanvas = document.createElement("canvas");
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = slice.sourceHeight;
+          const ctx = pageCanvas.getContext("2d");
+          if (!ctx) throw new Error("PDF 페이지 캔버스를 생성할 수 없습니다.");
+          ctx.drawImage(
+            canvas,
+            0,
+            slice.sourceY,
+            canvas.width,
+            slice.sourceHeight,
+            0,
+            0,
+            canvas.width,
+            slice.sourceHeight
+          );
+          const pageImgData = pageCanvas.toDataURL("image/jpeg", 0.85);
+          pdf.addImage(pageImgData, "JPEG", 0, 0, pageWidth, slice.pageImageHeightMm);
+        });
 
         const dateStr = noteDate ? noteDate.replace(/-/g, "") : "날짜없음";
         const nameStr = patientName || "이름없음";
@@ -253,7 +279,7 @@ export default function ProgressNoteForm() {
       <form onSubmit={handleSubmit(onSaveSubmit, onInvalid)}>
         <div 
           className={isGeneratingPdf
-            ? "bg-white p-0 m-0 text-black w-[800px] overflow-hidden"
+            ? "bg-white p-0 m-0 text-black w-[800px] overflow-visible"
             : "max-w-5xl mx-auto px-3 sm:px-10 py-5 sm:py-10 bg-gray-50/30 min-h-full pb-32 sm:pb-48 scroll-smooth print:bg-white print:p-0 print:m-0 print:pb-0"
           }
         >
@@ -334,12 +360,12 @@ export default function ProgressNoteForm() {
                 {!currentNoteId && (
                   <span
                     className={`inline-flex items-center gap-1 text-xs font-bold transition-opacity duration-300 ${
-                      autoSaveFlash ? "text-blue-600 opacity-100" : "text-gray-400 opacity-70"
+                      autoSaveFlash ? "text-blue-600 opacity-100" : lastDraftSavedAt ? "text-blue-700 opacity-90" : "text-gray-400 opacity-70"
                     }`}
                     aria-live="polite"
                   >
                     <Clock size={12} />
-                    {autoSaveFlash ? "임시 저장됨" : "5초마다 자동 저장"}
+                    {lastDraftSavedAt ? formatLastDraftSaveLabel(lastDraftSavedAt) : "5초마다 자동 저장"}
                   </span>
                 )}
                 {currentNoteId ? (
