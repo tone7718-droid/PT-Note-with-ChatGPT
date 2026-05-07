@@ -28,6 +28,7 @@ export function ClinicalSections({ isGeneratingPdf }: { isGeneratingPdf: boolean
           <SmartTextarea
             id={`clinical-${sec.key}`}
             isPdfMode={isGeneratingPdf}
+            scrollable
             placeholder={sec.placeholder}
             {...register(sec.key as keyof NoteData)}
           />

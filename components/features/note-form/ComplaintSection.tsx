@@ -18,6 +18,7 @@ export function ComplaintSection({ isGeneratingPdf }: { isGeneratingPdf: boolean
       <SmartTextarea
         id="chiefComplaint"
         isPdfMode={isGeneratingPdf}
+        scrollable
         placeholder="증상 및 발생 시기 입력..."
         {...register("chiefComplaint")}
       />
