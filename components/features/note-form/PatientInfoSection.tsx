@@ -12,11 +12,11 @@ export function PatientInfoSection({ isGeneratingPdf }: { isGeneratingPdf: boole
 
   const sectionTitleCls = isGeneratingPdf
     ? "text-lg font-bold text-black border-b-2 border-gray-400 pb-1 mb-2 mt-4"
-    : "text-base sm:text-2xl font-bold text-gray-900 border-b-2 border-gray-100 pb-2 sm:pb-3 mb-3 sm:mb-6 print:text-xl print:mb-3 print:pb-2 print:-mt-2";
+    : "text-base sm:text-2xl font-bold text-gray-900 border-b-2 border-gray-100 pb-2 sm:pb-3 mb-3 sm:mb-6 dark:text-slate-100 dark:border-slate-800 print:text-xl print:mb-3 print:pb-2 print:-mt-2 print:text-black";
 
   const labelCls = isGeneratingPdf
     ? "text-sm text-black mb-1 block font-bold"
-    : "text-xs sm:text-base text-gray-700 print:text-sm block font-bold mb-1 sm:mb-2";
+    : "text-xs sm:text-base text-gray-700 dark:text-slate-300 print:text-sm block font-bold mb-1 sm:mb-2 print:text-black";
 
   return (
     <Card isPdfMode={isGeneratingPdf}>
@@ -45,14 +45,14 @@ export function PatientInfoSection({ isGeneratingPdf }: { isGeneratingPdf: boole
         {/* 성별 선택 */}
         <div className={isGeneratingPdf ? "hidden" : "print:hidden"}>
           <label className={labelCls}>성별</label>
-          <div className="flex items-center gap-4 sm:gap-8 mt-1 sm:mt-4 bg-gray-50 px-3 py-2 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100">
+          <div className="flex items-center gap-4 sm:gap-8 mt-1 sm:mt-4 bg-gray-50 px-3 py-2 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 dark:bg-slate-950/70 dark:border-slate-800">
             <label className="flex items-center cursor-pointer group">
               <input type="radio" value="M" className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" {...register("gender")} />
-              <span className="ml-2 sm:ml-3 text-sm sm:text-base font-semibold text-gray-800 group-hover:text-blue-600">남성 (M)</span>
+              <span className="ml-2 sm:ml-3 text-sm sm:text-base font-semibold text-gray-800 group-hover:text-blue-600 dark:text-slate-200">남성 (M)</span>
             </label>
             <label className="flex items-center cursor-pointer group">
               <input type="radio" value="F" className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" {...register("gender")} />
-              <span className="ml-2 sm:ml-3 text-sm sm:text-base font-semibold text-gray-800 group-hover:text-blue-600">여성 (F)</span>
+              <span className="ml-2 sm:ml-3 text-sm sm:text-base font-semibold text-gray-800 group-hover:text-blue-600 dark:text-slate-200">여성 (F)</span>
             </label>
           </div>
         </div>
@@ -83,7 +83,7 @@ export function PatientInfoSection({ isGeneratingPdf }: { isGeneratingPdf: boole
       </div>
 
       {/* 통증 점수 */}
-      <div className={`${isGeneratingPdf ? 'hidden' : 'mt-4 sm:mt-8 bg-gray-50 p-3 sm:p-6 rounded-2xl sm:rounded-3xl border border-gray-100 print:hidden'}`}>
+      <div className={`${isGeneratingPdf ? 'hidden' : 'mt-4 sm:mt-8 bg-gray-50 p-3 sm:p-6 rounded-2xl sm:rounded-3xl border border-gray-100 dark:bg-slate-950/70 dark:border-slate-800 print:hidden'}`}>
         <Controller
           name="painScore"
           control={control}

@@ -13,7 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const viewport: Viewport = {
-  themeColor: "#2563eb",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#2563eb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -36,10 +39,26 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('pt-theme') || 'light';
+                  var resolved = theme === 'system'
+                    ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : theme;
+                  document.documentElement.classList.toggle('dark', resolved === 'dark');
+                  document.documentElement.style.colorScheme = resolved === 'dark' ? 'dark' : 'light';
+                } catch (_) {}
+              })();
+            `,
+          }}
+        />
         {/* 서비스 워커: 기존 등록이 있으면 언레지스터 (디버깅용 — 필요 시 복원) */}
         <script
           dangerouslySetInnerHTML={{

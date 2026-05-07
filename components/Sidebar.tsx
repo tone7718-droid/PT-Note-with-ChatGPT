@@ -191,39 +191,39 @@ export default function Sidebar() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-white relative">
-      <div className="flex items-center gap-3 p-4 border-b border-gray-100 shrink-0">
+    <div className="flex flex-col h-full w-full bg-white relative dark:bg-slate-950">
+      <div className="flex items-center gap-3 p-4 border-b border-gray-100 shrink-0 dark:border-slate-800">
         <div className="relative flex-shrink-0">
-          <button onClick={() => setShowDropdown(!showDropdown)} className="p-2.5 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors" aria-label="메뉴 열기" title="메뉴 열기"><Menu size={24} /></button>
+          <button onClick={() => setShowDropdown(!showDropdown)} className="p-2.5 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800" aria-label="메뉴 열기" title="메뉴 열기"><Menu size={24} /></button>
           {showDropdown && (
             <>
               <div className="fixed inset-0 z-[50]" onClick={() => setShowDropdown(false)} />
-              <div className="absolute left-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-[60] animate-in fade-in slide-in-from-top-2 duration-150">
-                <button onClick={() => { setShowLoginModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"><LogIn size={18} /> 로그인</button>
-                <button onClick={() => { setShowTherapistModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"><UserPlus size={18} /> 치료사 등록 / 관리</button>
-                <button onClick={() => { setShowMacroModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"><Sparkles size={18} /> 매크로 관리 (/도수1~20)</button>
-                <button onClick={() => { setShowBackupModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-cyan-50 hover:text-cyan-700 transition-colors"><ShieldCheck size={18} /> 백업 / 복원</button>
-                <hr className="my-1 border-gray-100" />
-                <button onClick={() => { handleExportData(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"><Download size={18} /> 데이터 내보내기</button>
-                <button onClick={() => { fileInputRef.current?.click(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"><Upload size={18} /> 데이터 가져오기</button>
+              <div className="absolute left-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-[60] animate-in fade-in slide-in-from-top-2 duration-150 dark:bg-slate-900 dark:border-slate-700">
+                <button onClick={() => { setShowLoginModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300"><LogIn size={18} /> 로그인</button>
+                <button onClick={() => { setShowTherapistModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-green-300"><UserPlus size={18} /> 치료사 등록 / 관리</button>
+                <button onClick={() => { setShowMacroModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300"><Sparkles size={18} /> 매크로 관리 (/도수1~20)</button>
+                <button onClick={() => { setShowBackupModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-cyan-50 hover:text-cyan-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-cyan-300"><ShieldCheck size={18} /> 백업 / 복원</button>
+                <hr className="my-1 border-gray-100 dark:border-slate-800" />
+                <button onClick={() => { handleExportData(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-purple-300"><Download size={18} /> 데이터 내보내기</button>
+                <button onClick={() => { fileInputRef.current?.click(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-orange-300"><Upload size={18} /> 데이터 가져오기</button>
               </div>
             </>
           )}
         </div>
         <div className="flex-1 relative">
-          <input id="sidebar-search" type="text" placeholder="환자 이름 · 진단명 검색..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-4 pr-11 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-medium outline-none" aria-label="기록 검색" />
-          <button className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-blue-500" aria-label="검색 실행"><Search size={18} /></button>
+          <input id="sidebar-search" type="text" placeholder="환자 이름 · 진단명 검색..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-4 pr-11 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-medium outline-none dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500" aria-label="기록 검색" />
+          <button className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-blue-500 dark:text-slate-500 dark:hover:text-blue-300" aria-label="검색 실행"><Search size={18} /></button>
         </div>
       </div>
 
       {therapist && (
         <div className="px-4 pt-4 shrink-0">
-          <div className="flex items-center justify-between gap-2 text-[15px] font-bold text-gray-800 bg-blue-50 px-4 py-3 rounded-2xl border border-blue-100 shadow-sm w-full">
+          <div className="flex items-center justify-between gap-2 text-[15px] font-bold text-gray-800 bg-blue-50 px-4 py-3 rounded-2xl border border-blue-100 shadow-sm w-full dark:bg-blue-950/30 dark:border-blue-900/70 dark:text-slate-100 dark:shadow-none">
             <div className="flex items-center gap-3">
               <div className={`${isMaster ? "bg-amber-500" : "bg-blue-600"} text-white p-1.5 rounded-full`}><Shield size={16} /></div>
-              <span className="truncate">{therapist.name} {therapist.id && <span className="text-gray-400 font-mono text-xs">({therapist.id})</span>}</span>
+              <span className="truncate">{therapist.name} {therapist.id && <span className="text-gray-400 font-mono text-xs dark:text-slate-500">({therapist.id})</span>}</span>
             </div>
-            <button onClick={handleLogout} className="text-xs text-red-500 hover:text-red-700 font-bold bg-white px-2.5 py-1.5 rounded-lg border border-red-100 shadow-sm transition-colors">로그아웃</button>
+            <button onClick={handleLogout} className="text-xs text-red-500 hover:text-red-700 font-bold bg-white px-2.5 py-1.5 rounded-lg border border-red-100 shadow-sm transition-colors dark:bg-slate-900 dark:border-red-900/60 dark:text-red-300 dark:hover:text-red-200">로그아웃</button>
           </div>
         </div>
       )}
@@ -232,14 +232,14 @@ export default function Sidebar() {
         <button type="button" onClick={createNewNote} className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base rounded-2xl shadow-lg transition-all transform hover:-translate-y-0.5"><Plus size={20} /> 새 노트 작성</button>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-gray-50/50">
+      <div className="flex-1 overflow-y-auto bg-gray-50/50 dark:bg-slate-950">
         <div className="px-4 pt-2 pb-1 flex justify-between items-center">
-          <h3 className="text-xs font-bold text-gray-500">최신 치료 내역</h3>
+          <h3 className="text-xs font-bold text-gray-500 dark:text-slate-400">최신 치료 내역</h3>
           {filteredNotes.length > 0 && (
             <button
               type="button"
               onClick={handleDeleteToolbarClick}
-              className={`p-1.5 rounded-md transition-colors ${isDeleteMode ? "text-red-600 bg-red-50" : "text-gray-400 hover:bg-gray-200"}`}
+              className={`p-1.5 rounded-md transition-colors ${isDeleteMode ? "text-red-600 bg-red-50 dark:bg-red-950/40 dark:text-red-300" : "text-gray-400 hover:bg-gray-200 dark:text-slate-500 dark:hover:bg-slate-800"}`}
               aria-label={isDeleteMode && selectedIds.length > 0 ? "선택한 기록 삭제" : "삭제 모드 전환"}
               title={isDeleteMode && selectedIds.length > 0 ? "선택한 기록 삭제" : "삭제 모드 전환"}
             >
@@ -249,14 +249,14 @@ export default function Sidebar() {
         </div>
 
         {filteredNotes.length === 0 ? (
-          <div className="p-8 text-center flex flex-col items-center h-32 opacity-40 justify-center text-sm font-medium">기록이 없습니다.</div>
+          <div className="p-8 text-center flex flex-col items-center h-32 opacity-40 justify-center text-sm font-medium dark:text-slate-400">기록이 없습니다.</div>
         ) : (
           <ul className="p-3 space-y-2.5">
             {filteredNotes.map((note) => (
               <li key={note.id} onClick={() => { if (isDeleteMode) setSelectedIds(prev => prev.includes(note.id) ? prev.filter(i => i !== note.id) : [...prev, note.id]); else selectNote(note.id); }}
-                className={`group p-4 rounded-2xl cursor-pointer transition-all border-2 flex items-center gap-3 ${selectedNoteId === note.id && !isDeleteMode ? "bg-blue-50/50 border-blue-200" : "bg-white border-transparent shadow-sm"} ${isDeleteMode && selectedIds.includes(note.id) ? "border-red-200 bg-red-50" : ""}`}>
+                className={`group p-4 rounded-2xl cursor-pointer transition-all border-2 flex items-center gap-3 ${selectedNoteId === note.id && !isDeleteMode ? "bg-blue-50/50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800" : "bg-white border-transparent shadow-sm dark:bg-slate-900 dark:border-slate-800 dark:shadow-none"} ${isDeleteMode && selectedIds.includes(note.id) ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30" : ""}`}>
                 {isDeleteMode && <input type="checkbox" checked={selectedIds.includes(note.id)} readOnly className="w-5 h-5 rounded border-gray-300 text-red-600" aria-label={`${note.patientName} 기록 선택`} />}
-                <span className={`font-bold text-[15px] truncate block w-full text-left ${selectedNoteId === note.id && !isDeleteMode ? "text-blue-800" : isDeleteMode && selectedIds.includes(note.id) ? "text-red-800" : "text-gray-900"}`}>
+                <span className={`font-bold text-[15px] truncate block w-full text-left ${selectedNoteId === note.id && !isDeleteMode ? "text-blue-800 dark:text-blue-200" : isDeleteMode && selectedIds.includes(note.id) ? "text-red-800 dark:text-red-200" : "text-gray-900 dark:text-slate-100"}`}>
                   {note.patientName || "(이름 없음)"} - {formatDate(note.savedAt)}
                 </span>
               </li>
@@ -266,20 +266,20 @@ export default function Sidebar() {
 
         {isMaster && resignedGroups.length > 0 && (
           <div className="px-3 pb-3 mt-2">
-            <button onClick={() => setShowResignedFolder(!showResignedFolder)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 font-bold text-sm">
-              {showResignedFolder ? <ChevronDown size={16} /> : <ChevronRight size={16} />} 퇴사한 치료사 기록 <span className="ml-auto text-xs bg-amber-200 px-2 py-0.5 rounded-full">{resignedGroups.reduce((s, g) => s + g.notes.length, 0)}</span>
+            <button onClick={() => setShowResignedFolder(!showResignedFolder)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 font-bold text-sm dark:bg-amber-950/30 dark:border-amber-900/60 dark:text-amber-200">
+              {showResignedFolder ? <ChevronDown size={16} /> : <ChevronRight size={16} />} 퇴사한 치료사 기록 <span className="ml-auto text-xs bg-amber-200 px-2 py-0.5 rounded-full dark:bg-amber-900/70">{resignedGroups.reduce((s, g) => s + g.notes.length, 0)}</span>
             </button>
             {showResignedFolder && (
               <div className="mt-2 space-y-3">
                 {resignedGroups.map((group) => (
-                  <div key={group.therapistUid} className="bg-white rounded-xl border border-gray-200 p-3">
-                    <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-50">
-                      <span className="text-sm font-bold text-gray-700">{group.therapistName} (퇴사)</span>
-                      <button onClick={() => setTransferSource({ therapistUid: group.therapistUid, therapistName: group.therapistName })} className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors border border-blue-100"><ArrowRightLeft size={12} /> 이관</button>
+                  <div key={group.therapistUid} className="bg-white rounded-xl border border-gray-200 p-3 dark:bg-slate-900 dark:border-slate-800">
+                    <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-50 dark:border-slate-800">
+                      <span className="text-sm font-bold text-gray-700 dark:text-slate-200">{group.therapistName} (퇴사)</span>
+                      <button onClick={() => setTransferSource({ therapistUid: group.therapistUid, therapistName: group.therapistName })} className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors border border-blue-100 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-900 dark:hover:bg-blue-950"><ArrowRightLeft size={12} /> 이관</button>
                     </div>
                     <ul className="space-y-1">
                       {group.notes.map((note) => (
-                        <li key={note.id} onClick={() => selectNote(note.id)} className={`p-2.5 rounded-lg cursor-pointer text-sm font-medium transition-colors ${selectedNoteId === note.id ? "bg-blue-50 text-blue-800" : "text-gray-600 hover:bg-gray-50"}`}>
+                        <li key={note.id} onClick={() => selectNote(note.id)} className={`p-2.5 rounded-lg cursor-pointer text-sm font-medium transition-colors ${selectedNoteId === note.id ? "bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200" : "text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800"}`}>
                           {note.patientName || "(이름 없음)"} - {formatDate(note.savedAt)}
                         </li>
                       ))}
@@ -292,8 +292,8 @@ export default function Sidebar() {
         )}
       </div>
 
-      <div className="p-4 bg-gray-50 shrink-0 border-t border-gray-100 flex items-center justify-between min-h-[56px]">
-        <span className="text-xs font-bold text-gray-400">총 {notes.length}건</span>
+      <div className="p-4 bg-gray-50 shrink-0 border-t border-gray-100 flex items-center justify-between min-h-[56px] dark:bg-slate-950 dark:border-slate-800">
+        <span className="text-xs font-bold text-gray-400 dark:text-slate-500">총 {notes.length}건</span>
         {isDeleteMode && selectedIds.length > 0 && (
           <button onClick={() => setShowDeleteModal(true)} className="px-4 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors">기록 삭제 ({selectedIds.length}건)</button>
         )}
@@ -308,11 +308,11 @@ export default function Sidebar() {
       {/* ── 삭제 확인 모달 (1단계) ── */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 print:hidden">
-          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">기록 삭제 경고</h3>
-            <p className="text-gray-600 mb-8 font-medium leading-relaxed">선택한 <span className="font-bold text-red-600">{selectedIds.length}건</span>의 기록을<br />정말로 삭제하시겠습니까?</p>
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200 dark:bg-slate-900 dark:border dark:border-slate-700">
+            <h3 className="text-xl font-bold text-gray-900 mb-2 dark:text-white">기록 삭제 경고</h3>
+            <p className="text-gray-600 mb-8 font-medium leading-relaxed dark:text-slate-300">선택한 <span className="font-bold text-red-600 dark:text-red-300">{selectedIds.length}건</span>의 기록을<br />정말로 삭제하시겠습니까?</p>
             <div className="flex gap-3">
-              <button onClick={() => setShowDeleteModal(false)} className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">아니오</button>
+              <button onClick={() => setShowDeleteModal(false)} className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">아니오</button>
               <button onClick={handleDeleteStep1Confirm} className="flex-1 py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg transition-colors">예 (삭제)</button>
             </div>
           </div>
@@ -322,15 +322,15 @@ export default function Sidebar() {
       {/* ── 삭제 2단계: 비밀번호 확인 ── */}
       {showPwConfirm && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
-          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-bold text-gray-900 mb-2 text-center text-balance">본인 확인 비밀번호</h3>
-            <p className="text-gray-500 mb-6 font-medium text-sm text-center">삭제를 완료하려면 치료사의<br />비밀번호를 다시 입력해주세요.</p>
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200 dark:bg-slate-900 dark:border dark:border-slate-700">
+            <h3 className="text-xl font-bold text-gray-900 mb-2 text-center text-balance dark:text-white">본인 확인 비밀번호</h3>
+            <p className="text-gray-500 mb-6 font-medium text-sm text-center dark:text-slate-400">삭제를 완료하려면 치료사의<br />비밀번호를 다시 입력해주세요.</p>
             <label htmlFor="confirm-delete-pw" className="sr-only">비밀번호 입력</label>
             <input id="confirm-delete-pw" type="password" value={deletePw} onChange={(e) => { setDeletePw(e.target.value); setDeletePwError(""); }} placeholder="비밀번호 입력"
-              className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-center font-bold tracking-widest outline-none mb-3" autoFocus />
+              className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-center font-bold tracking-widest outline-none mb-3 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500" autoFocus />
             {deletePwError && <p className="text-red-500 text-sm font-bold text-center mb-3">{deletePwError}</p>}
             <div className="flex gap-3">
-              <button onClick={() => { setShowPwConfirm(false); setDeletePw(""); }} className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">취소</button>
+              <button onClick={() => { setShowPwConfirm(false); setDeletePw(""); }} className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">취소</button>
               <button onClick={handleDeleteStep2Confirm} className="flex-1 py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg transition-colors">삭제 확인</button>
             </div>
           </div>
@@ -340,9 +340,9 @@ export default function Sidebar() {
       {/* ── 이관 모달 ── */}
       {transferSource && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">기록 이관</h3>
-            <p className="text-gray-600 mb-6 text-sm">퇴사한 {transferSource.therapistName}의 모든 기록을<br />아래 치료사 중 한 명에게 이관합니다.</p>
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 dark:bg-slate-900 dark:border dark:border-slate-700">
+            <h3 className="text-xl font-bold text-gray-900 mb-2 dark:text-white">기록 이관</h3>
+            <p className="text-gray-600 mb-6 text-sm dark:text-slate-300">퇴사한 {transferSource.therapistName}의 모든 기록을<br />아래 치료사 중 한 명에게 이관합니다.</p>
             <ul className="space-y-2 max-h-48 overflow-y-auto mb-6">
               {activeTherapists.map((t) => (
                 <li key={t.uid}>
@@ -355,14 +355,14 @@ export default function Sidebar() {
                       alert("이관 처리 중 오류가 발생했습니다.");
                     }
                   }}
-                    className="w-full flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border-2 border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-all font-bold text-left">
-                    <span>{t.name} <span className="text-gray-400 font-mono text-xs">({t.id})</span></span>
+                    className="w-full flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border-2 border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-all font-bold text-left dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:border-blue-800">
+                    <span>{t.name} <span className="text-gray-400 font-mono text-xs dark:text-slate-500">({t.id})</span></span>
                     <ArrowRightLeft size={14} className="text-blue-500" />
                   </button>
                 </li>
               ))}
             </ul>
-            <button onClick={() => setTransferSource(null)} className="w-full py-3.5 bg-gray-100 font-bold rounded-xl">취소</button>
+            <button onClick={() => setTransferSource(null)} className="w-full py-3.5 bg-gray-100 font-bold rounded-xl dark:bg-slate-800 dark:text-slate-200">취소</button>
           </div>
         </div>
       )}

@@ -146,13 +146,13 @@ export const SmartTextarea = React.forwardRef<HTMLTextAreaElement, SmartTextarea
         {trigger && !isPdfMode && (
           <div
             ref={popupRef}
-            className="absolute left-0 right-0 mt-1 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl z-50 text-sm"
+            className="absolute left-0 right-0 mt-1 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl z-50 text-sm dark:bg-slate-900 dark:border-slate-700"
             role="listbox"
             aria-label="도수치료 매크로 후보"
           >
             {candidates.length === 0 ? (
-              <div className="px-4 py-3 text-gray-500">
-                <div className="font-bold text-gray-700 mb-0.5">등록된 도수치료 매크로가 없습니다.</div>
+              <div className="px-4 py-3 text-gray-500 dark:text-slate-400">
+                <div className="font-bold text-gray-700 mb-0.5 dark:text-slate-200">등록된 도수치료 매크로가 없습니다.</div>
                 <div className="text-xs">사이드바 메뉴 → &quot;매크로 관리&quot; 에서 1~20번 슬롯에 자주 쓰는 문구를 등록하세요.</div>
               </div>
             ) : (
@@ -169,12 +169,12 @@ export const SmartTextarea = React.forwardRef<HTMLTextAreaElement, SmartTextarea
                       insert(c.idx);
                     }}
                     onMouseEnter={() => setHighlight(i)}
-                    className={`w-full text-left px-3 py-2 flex items-start gap-2 border-b border-gray-50 last:border-b-0 transition-colors ${isActive ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                    className={`w-full text-left px-3 py-2 flex items-start gap-2 border-b border-gray-50 last:border-b-0 transition-colors dark:border-slate-800 ${isActive ? "bg-blue-50 dark:bg-blue-950/50" : "hover:bg-gray-50 dark:hover:bg-slate-800"}`}
                   >
-                    <span className={`shrink-0 px-2 py-0.5 rounded text-xs font-bold ${isActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+                    <span className={`shrink-0 px-2 py-0.5 rounded text-xs font-bold ${isActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300"}`}>
                       /도수{c.slot}
                     </span>
-                    <span className="text-gray-700 line-clamp-2 break-words text-xs sm:text-sm">{c.content}</span>
+                    <span className="text-gray-700 line-clamp-2 break-words text-xs sm:text-sm dark:text-slate-200">{c.content}</span>
                   </button>
                 );
               })
