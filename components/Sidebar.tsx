@@ -1,13 +1,19 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useNoteStore } from "@/store/useNoteStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles } from "lucide-react";
+import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles, Filter, RotateCcw } from "lucide-react";
 import LoginModal from "./LoginModal";
 import TherapistManagementModal from "./TherapistManagementModal";
 import MacroManagementModal from "./MacroManagementModal";
 import { getDeleteToolbarAction } from "@/lib/progressNoteUi";
+import {
+  filterAndSortSidebarNotes,
+  getVisibleSidebarNotes,
+  hasActiveSidebarFilters,
+  type SidebarSortBy,
+} from "@/lib/sidebarFilters";
 
 export default function Sidebar() {
   const notes = useNoteStore((s) => s.notes);
@@ -39,6 +45,11 @@ export default function Sidebar() {
   const [showTherapistModal, setShowTherapistModal] = useState(false);
   const [showMacroModal, setShowMacroModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filterTherapistUid, setFilterTherapistUid] = useState("all");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+  const [sortBy, setSortBy] = useState<SidebarSortBy>("newest");
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -97,26 +108,38 @@ export default function Sidebar() {
   const isMaster = therapist?.role === "master";
 
   /* 현재 로그인된 치료사의 노트만 표시 (master는 전체, 단 퇴사자 노트는 폴더에서만) */
-  const visibleNotes = notes.filter((n) => {
-    if (isMaster) {
-      const isResigned = therapists.some((t) => t.resigned && t.uid === n.therapistUid);
-      return !isResigned;
-    }
-    if (therapist) return n.therapistUid === therapist.uid || !n.therapistUid;
-    return true;
-  });
+  const visibleNotes = useMemo(
+    () => getVisibleSidebarNotes({ notes, therapists, therapist }),
+    [notes, therapists, therapist]
+  );
 
-  const filteredNotes = visibleNotes
-    .filter(
-      (n) =>
-        n.patientName.includes(search) ||
-        n.diagnosis.includes(search) ||
-        n.chartNo.includes(search)
-    )
-    .sort((a, b) => new Date(b.savedAt || 0).getTime() - new Date(a.savedAt || 0).getTime());
+  const sidebarFilters = useMemo(
+    () => ({
+      search,
+      therapistUid: filterTherapistUid,
+      startDate: filterStartDate,
+      endDate: filterEndDate,
+      sortBy,
+    }),
+    [search, filterTherapistUid, filterStartDate, filterEndDate, sortBy]
+  );
+
+  const filteredNotes = useMemo(
+    () => filterAndSortSidebarNotes(visibleNotes, sidebarFilters),
+    [visibleNotes, sidebarFilters]
+  );
+  const hasActiveFilters = hasActiveSidebarFilters(sidebarFilters);
 
   const resignedGroups = getResignedTherapistNotes();
   const activeTherapists = therapists.filter((t) => !t.resigned && t.role !== "master");
+
+  const clearFilters = () => {
+    setSearch("");
+    setFilterTherapistUid("all");
+    setFilterStartDate("");
+    setFilterEndDate("");
+    setSortBy("newest");
+  };
 
   const handleDeleteToolbarClick = () => {
     const action = getDeleteToolbarAction({
@@ -211,7 +234,112 @@ export default function Sidebar() {
           <input id="sidebar-search" type="text" placeholder="환자 이름 · 진단명 검색..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-4 pr-11 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-medium outline-none dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500" aria-label="기록 검색" />
           <button className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-blue-500 dark:text-slate-500 dark:hover:text-blue-300" aria-label="검색 실행"><Search size={18} /></button>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowFilterPanel((open) => !open)}
+          className={`relative p-2.5 rounded-xl transition-colors shrink-0 ${
+            showFilterPanel || hasActiveFilters
+              ? "bg-blue-600 text-white shadow-sm"
+              : "text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          }`}
+          aria-label="필터 및 정렬"
+          title="필터 및 정렬"
+        >
+          <Filter size={20} />
+          {hasActiveFilters && (
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-white dark:border-slate-950" />
+          )}
+        </button>
       </div>
+
+      {showFilterPanel && (
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 shrink-0 dark:bg-slate-900/80 dark:border-slate-800 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div>
+              <p className="text-xs font-black text-gray-700 dark:text-slate-200">검색 필터</p>
+              <p className="text-[11px] font-bold text-gray-400 dark:text-slate-500">날짜, 치료사, 정렬 기준으로 좁혀보기</p>
+            </div>
+            <button
+              type="button"
+              onClick={clearFilters}
+              disabled={!hasActiveFilters}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-black text-gray-500 hover:bg-white hover:text-gray-800 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+            >
+              <RotateCcw size={13} /> 초기화
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {isMaster && (
+              <div>
+                <label htmlFor="sidebar-filter-therapist" className="block text-[11px] font-black text-gray-500 mb-1 dark:text-slate-400">
+                  치료사
+                </label>
+                <select
+                  id="sidebar-filter-therapist"
+                  value={filterTherapistUid}
+                  onChange={(e) => setFilterTherapistUid(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-blue-500/20"
+                >
+                  <option value="all">전체 치료사</option>
+                  {activeTherapists.map((t) => (
+                    <option key={t.uid} value={t.uid}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-[11px] font-black text-gray-500 mb-1 dark:text-slate-400">
+                방문일 범위
+              </label>
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <input
+                  type="date"
+                  value={filterStartDate}
+                  onChange={(e) => setFilterStartDate(e.target.value)}
+                  className="min-w-0 px-2.5 py-2.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-blue-500/20"
+                  aria-label="방문일 시작"
+                />
+                <span className="text-gray-400 text-xs font-black dark:text-slate-500">~</span>
+                <input
+                  type="date"
+                  value={filterEndDate}
+                  onChange={(e) => setFilterEndDate(e.target.value)}
+                  className="min-w-0 px-2.5 py-2.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-blue-500/20"
+                  aria-label="방문일 종료"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-black text-gray-500 mb-1 dark:text-slate-400">
+                정렬
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  ["newest", "최신순"],
+                  ["oldest", "과거순"],
+                  ["patientName", "가나다순"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setSortBy(value as SidebarSortBy)}
+                    className={`py-2 rounded-lg text-xs font-black border transition-colors ${
+                      sortBy === value
+                        ? "bg-blue-600 border-blue-600 text-white"
+                        : "bg-white border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-300 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-100"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {therapist && (
         <div className="px-4 pt-4 shrink-0">
@@ -231,7 +359,12 @@ export default function Sidebar() {
 
       <div className="flex-1 overflow-y-auto bg-gray-50/50 dark:bg-slate-950">
         <div className="px-4 pt-2 pb-1 flex justify-between items-center">
-          <h3 className="text-xs font-bold text-gray-500 dark:text-slate-400">최신 치료 내역</h3>
+          <div>
+            <h3 className="text-xs font-bold text-gray-500 dark:text-slate-400">치료 내역</h3>
+            <p className="text-[11px] font-bold text-gray-400 dark:text-slate-500">
+              {filteredNotes.length}건 표시 · 전체 {visibleNotes.length}건
+            </p>
+          </div>
           {filteredNotes.length > 0 && (
             <button
               type="button"
@@ -251,11 +384,23 @@ export default function Sidebar() {
           <ul className="p-3 space-y-2.5">
             {filteredNotes.map((note) => (
               <li key={note.id} onClick={() => { if (isDeleteMode) setSelectedIds(prev => prev.includes(note.id) ? prev.filter(i => i !== note.id) : [...prev, note.id]); else selectNote(note.id); }}
-                className={`group p-4 rounded-2xl cursor-pointer transition-all border-2 flex items-center gap-3 ${selectedNoteId === note.id && !isDeleteMode ? "bg-blue-50/50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800" : "bg-white border-transparent shadow-sm dark:bg-slate-900 dark:border-slate-800 dark:shadow-none"} ${isDeleteMode && selectedIds.includes(note.id) ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30" : ""}`}>
+                className={`group p-4 rounded-2xl cursor-pointer transition-all border-2 flex items-start gap-3 ${selectedNoteId === note.id && !isDeleteMode ? "bg-blue-50/50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800" : "bg-white border-transparent shadow-sm dark:bg-slate-900 dark:border-slate-800 dark:shadow-none"} ${isDeleteMode && selectedIds.includes(note.id) ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30" : ""}`}>
                 {isDeleteMode && <input type="checkbox" checked={selectedIds.includes(note.id)} readOnly className="w-5 h-5 rounded border-gray-300 text-red-600" aria-label={`${note.patientName} 기록 선택`} />}
-                <span className={`font-bold text-[15px] truncate block w-full text-left ${selectedNoteId === note.id && !isDeleteMode ? "text-blue-800 dark:text-blue-200" : isDeleteMode && selectedIds.includes(note.id) ? "text-red-800 dark:text-red-200" : "text-gray-900 dark:text-slate-100"}`}>
-                  {note.patientName || "(이름 없음)"} - {formatDate(note.savedAt)}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`font-bold text-[15px] truncate block text-left ${selectedNoteId === note.id && !isDeleteMode ? "text-blue-800 dark:text-blue-200" : isDeleteMode && selectedIds.includes(note.id) ? "text-red-800 dark:text-red-200" : "text-gray-900 dark:text-slate-100"}`}>
+                      {note.patientName || "(이름 없음)"}
+                    </span>
+                    <span className="shrink-0 text-[11px] font-black text-gray-400 dark:text-slate-500">
+                      {formatDate(note.noteDate || note.savedAt)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-bold text-gray-500 dark:text-slate-400">
+                    <span className="truncate max-w-full">{note.chartNo || "차트번호 없음"}</span>
+                    <span className="text-gray-300 dark:text-slate-600">·</span>
+                    <span className="truncate max-w-full">{note.diagnosis || "진단명 없음"}</span>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
@@ -290,7 +435,9 @@ export default function Sidebar() {
       </div>
 
       <div className="p-4 bg-gray-50 shrink-0 border-t border-gray-100 flex items-center justify-between min-h-[56px] dark:bg-slate-950 dark:border-slate-800">
-        <span className="text-xs font-bold text-gray-400 dark:text-slate-500">총 {notes.length}건</span>
+        <span className="text-xs font-bold text-gray-400 dark:text-slate-500">
+          {hasActiveFilters ? `필터 적용 ${filteredNotes.length}건` : `총 ${notes.length}건`}
+        </span>
         {isDeleteMode && selectedIds.length > 0 && (
           <button onClick={() => setShowDeleteModal(true)} className="px-4 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors">기록 삭제 ({selectedIds.length}건)</button>
         )}
