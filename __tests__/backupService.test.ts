@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   createBackupPayload,
-  decryptBackupText,
-  encryptBackupPayload,
   listAutoBackups,
+  parsePlainBackupText,
   saveAutoBackup,
   validateBackupPayload,
 } from "@/lib/backupService";
@@ -83,20 +82,16 @@ describe("backupService", () => {
     expect(backups[9].createdAt).toBe("2026-05-06T12:02:00.000Z");
   });
 
-  it("encrypts and decrypts backup text with a passphrase", async () => {
+  it("parses plain backup text without a passphrase", () => {
     const payload = createBackupPayload({
-      notes: [sampleNote("secure")],
+      notes: [sampleNote("plain")],
       therapists: [sampleTherapist("t1")],
       reason: "manual",
       now: new Date("2026-05-06T12:00:00.000Z"),
     });
 
-    const encrypted = await encryptBackupPayload(payload, "strong-passphrase");
-    expect(encrypted).toContain('"format":"pt-note-encrypted-backup"');
-    expect(encrypted).not.toContain("홍길동");
-
-    const decrypted = await decryptBackupText(encrypted, "strong-passphrase");
-    expect(decrypted.notes[0].id).toBe("secure");
-    expect(decrypted.therapists[0].uid).toBe("t1");
+    const parsed = parsePlainBackupText(JSON.stringify(payload));
+    expect(parsed.notes[0].id).toBe("plain");
+    expect(parsed.therapists[0].uid).toBe("t1");
   });
 });

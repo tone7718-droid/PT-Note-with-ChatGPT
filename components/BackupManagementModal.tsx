@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { Download, Lock, RotateCcw, ShieldCheck, Upload, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { RotateCcw, ShieldCheck, Upload, X } from "lucide-react";
 import { useNoteStore } from "@/store/useNoteStore";
 import type { AutoBackupEntry } from "@/lib/backupService";
 
@@ -10,13 +10,10 @@ interface BackupManagementModalProps {
 }
 
 export default function BackupManagementModal({ onClose }: BackupManagementModalProps) {
-  const exportEncryptedBackup = useNoteStore((s) => s.exportEncryptedBackup);
   const importBackupText = useNoteStore((s) => s.importBackupText);
   const getAutoBackups = useNoteStore((s) => s.getAutoBackups);
   const restoreAutoBackup = useNoteStore((s) => s.restoreAutoBackup);
 
-  const [exportPw, setExportPw] = useState("");
-  const [importPw, setImportPw] = useState("");
   const [selectedBackupText, setSelectedBackupText] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
   const [status, setStatus] = useState("");
@@ -24,37 +21,6 @@ export default function BackupManagementModal({ onClose }: BackupManagementModal
   const [busy, setBusy] = useState(false);
   const [autoBackups, setAutoBackups] = useState<AutoBackupEntry[]>(() => getAutoBackups());
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const selectedFileEncrypted = useMemo(() => {
-    try {
-      const parsed = JSON.parse(selectedBackupText) as { format?: string };
-      return parsed.format === "pt-note-encrypted-backup";
-    } catch {
-      return false;
-    }
-  }, [selectedBackupText]);
-
-  const handleExport = async () => {
-    setError("");
-    setStatus("");
-    setBusy(true);
-    try {
-      const text = await exportEncryptedBackup(exportPw);
-      const blob = new Blob([text], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `pt-note-encrypted-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setStatus("암호화 백업 파일을 내보냈습니다.");
-      setExportPw("");
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -79,9 +45,8 @@ export default function BackupManagementModal({ onClose }: BackupManagementModal
     setStatus("");
     setBusy(true);
     try {
-      const result = await importBackupText(selectedBackupText, importPw);
+      const result = await importBackupText(selectedBackupText);
       setStatus(`복원 완료: 노트 ${result.notesCount}건, 치료사 ${result.therapistsCount}건 추가`);
-      setImportPw("");
       setSelectedBackupText("");
       setSelectedFileName("");
       setAutoBackups(getAutoBackups());
@@ -117,7 +82,7 @@ export default function BackupManagementModal({ onClose }: BackupManagementModal
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-black text-gray-900">백업 / 복원</h2>
-              <p className="text-xs text-gray-500 font-medium">환자 기록을 암호화 파일과 자동 백업으로 보호합니다.</p>
+              <p className="text-xs text-gray-500 font-medium">로컬 자동 백업과 일반 JSON 복원으로 기록을 보호합니다.</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700" aria-label="닫기">
@@ -126,30 +91,6 @@ export default function BackupManagementModal({ onClose }: BackupManagementModal
         </div>
 
         <div className="overflow-y-auto max-h-[calc(90vh-76px)] px-5 sm:px-7 py-5 space-y-5 bg-gray-50">
-          <section className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <Lock size={18} className="text-blue-700" />
-              <h3 className="font-black text-gray-900">암호화 백업 내보내기</h3>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="password"
-                value={exportPw}
-                onChange={(e) => setExportPw(e.target.value)}
-                placeholder="백업 비밀번호 8자 이상"
-                className="flex-1 px-4 py-3 border-2 border-gray-100 bg-gray-50 rounded-xl font-bold outline-none focus:border-blue-400"
-              />
-              <button
-                type="button"
-                disabled={busy}
-                onClick={handleExport}
-                className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 disabled:bg-blue-300 hover:bg-blue-700 text-white font-black rounded-xl"
-              >
-                <Download size={18} /> 내보내기
-              </button>
-            </div>
-          </section>
-
           <section className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <Upload size={18} className="text-green-700" />
@@ -164,15 +105,6 @@ export default function BackupManagementModal({ onClose }: BackupManagementModal
               >
                 {selectedFileName || "백업 파일 선택"}
               </button>
-              {selectedFileEncrypted && (
-                <input
-                  type="password"
-                  value={importPw}
-                  onChange={(e) => setImportPw(e.target.value)}
-                  placeholder="백업 비밀번호"
-                  className="w-full px-4 py-3 border-2 border-gray-100 bg-gray-50 rounded-xl font-bold outline-none focus:border-green-400"
-                />
-              )}
               <button
                 type="button"
                 disabled={busy || !selectedBackupText}
