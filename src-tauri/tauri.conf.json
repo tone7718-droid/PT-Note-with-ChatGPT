@@ -44,7 +44,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk4QzA2QjQ0OENBMkU4NTcKUldSWDZLS01SR3ZBbUF3aEwxeDBQWmJsQVhQWmJJL1h2dzRQbm1nY21EeTk0V21SYU45M2tWenkK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY1QTUzNTM4RUE3ODIzN0UKUldSK0kzanFPRFdsWlZDV25PYVltQk1VTXhwZFJkV2JJWXJpeit6K3lhNU81VUJ4dVRJREZmcUcK",
       "endpoints": [
         "https://github.com/tone7718-droid/PT-Note-with-ChatGPT/releases/latest/download/latest.json"
       ]

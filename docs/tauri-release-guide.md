@@ -7,6 +7,7 @@
 - 업데이트 서명 키페어 (`.tauri-keys/pt-updater.key` + `.pub`)
   - **Public key**: `tauri.conf.json`의 `plugins.updater.pubkey`에 이미 내장됨
   - **Private key**: `.tauri-keys/` 폴더 (gitignore 처리됨) — **절대 커밋 금지**
+  - **Private key password**: `.tauri-keys/pt-updater.passphrase.txt` (gitignore 처리됨) — **절대 커밋 금지**
 - 업데이트 체크 UI (`components/UpdateChecker.tsx`, `app/page.tsx` 등록 완료)
 - 업데이트 매니페스트 URL: `https://github.com/zetz1/pt-progress-note/releases/latest/download/latest.json`
   - → GitHub 계정/repo 이름이 다르면 `tauri.conf.json` 수정 필요
@@ -28,7 +29,7 @@ Private key를 환경변수로 전달하며 빌드:
 ```powershell
 # PowerShell (Windows)
 $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw ".tauri-keys\pt-updater.key"
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = Get-Content -Raw ".tauri-keys\pt-updater.passphrase.txt"
 npm run tauri:build
 ```
 
@@ -88,7 +89,7 @@ Release 태그: `v0.2.0` (매니페스트 URL의 `latest/download/`는 "latest r
 
 1. GitHub repo Settings → Secrets에 다음 등록:
    - `TAURI_SIGNING_PRIVATE_KEY`: `.tauri-keys/pt-updater.key` 파일 전체 내용
-   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: (빈 값)
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: `.tauri-keys/pt-updater.passphrase.txt` 파일 내용
 2. `.github/workflows/release.yml` 에 `tauri-apps/tauri-action@v0` 사용
 3. `git tag v0.2.0 && git push --tags` 만 하면 자동 빌드+서명+매니페스트 업로드
 
