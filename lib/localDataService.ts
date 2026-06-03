@@ -5,9 +5,10 @@
  * 데스크톱 앱에서는 OS의 사용자 프로필 폴더에 영구 저장 (Tauri WebView2 storage).
  *
  * 데이터 키:
- *   - pt_local_notes        : NoteData[]
+ *   - pt_local_notes        : NoteData[] (AES-GCM 암호화 저장)
  *   - pt_local_therapists   : TherapistRecord[]
  *   - pt_local_session      : { uid: string }  // 로그인 세션
+ *   - pt_enc_key_v1         : 256-bit AES-GCM 키 (hex)
  *
  * 기본 마스터 계정: id "master" / pw "0000" (앱 첫 실행 시 자동 생성)
  *
@@ -16,7 +17,8 @@
  */
 
 import type { NoteData, TherapistRecord, Therapist } from "@/types";
-import { hashPassword, verifyPassword } from "@/components/hashUtils";
+import { hashPassword, verifyPassword, isLegacyHash } from "@/components/hashUtils";
+import { encryptData, decryptData } from "@/lib/cryptoService";
 import {
   createBackupPayload,
   saveAutoBackup,
@@ -48,6 +50,39 @@ function read<T>(key: string, fallback: T): T {
 function write<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+/** 환자 노트를 AES-GCM 암호화해서 저장 */
+async function writeNotes(notes: NoteData[]): Promise<void> {
+  if (typeof window === "undefined") return;
+  const encrypted = await encryptData(JSON.stringify(notes));
+  window.localStorage.setItem(NOTES_KEY, encrypted);
+}
+
+/**
+ * 환자 노트 복호화 읽기.
+ * 기존 평문 데이터(마이그레이션 전)는 JSON 폴백으로 자동 처리.
+ */
+async function readNotes(): Promise<NoteData[]> {
+  if (typeof window === "undefined") return [];
+  const raw = window.localStorage.getItem(NOTES_KEY);
+  if (!raw) return [];
+  try {
+    const decrypted = await decryptData(raw);
+    return JSON.parse(decrypted) as NoteData[];
+  } catch {
+    // 암호화 전 평문 데이터 폴백 (최초 1회 마이그레이션)
+    try {
+      const plain = JSON.parse(raw) as NoteData[];
+      if (Array.isArray(plain)) {
+        await writeNotes(plain); // 즉시 암호화로 업그레이드
+        return plain;
+      }
+    } catch {
+      /* 손상된 데이터는 빈 배열 반환 */
+    }
+    return [];
+  }
 }
 
 async function ensureBootstrapMaster(): Promise<void> {
@@ -85,6 +120,15 @@ export async function signIn(
 
   const valid = await verifyPassword(password, found.passwordHash);
   if (!valid) throw new Error("ID 또는 비밀번호를 확인해주세요.");
+
+  // 레거시 SHA-256 해시를 PBKDF2 로 자동 업그레이드
+  if (isLegacyHash(found.passwordHash)) {
+    const newHash = await hashPassword(password);
+    write(
+      THERAPISTS_KEY,
+      therapists.map((t) => (t.uid === found.uid ? { ...t, passwordHash: newHash } : t))
+    );
+  }
 
   const session: Therapist = {
     uid: found.uid,
@@ -151,7 +195,7 @@ function sanitizePainAreas(note: NoteData): NoteData {
 }
 
 export async function fetchNotes(): Promise<NoteData[]> {
-  return read<NoteData[]>(NOTES_KEY, [])
+  return (await readNotes())
     .map(sanitizePainAreas)
     .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
 }
@@ -164,21 +208,18 @@ export async function upsertNote(note: NoteData): Promise<NoteData> {
     therapistUid: note.therapistUid || session?.uid || "",
   };
 
-  const notes = read<NoteData[]>(NOTES_KEY, []);
+  const notes = await readNotes();
   const idx = notes.findIndex((n) => n.id === enriched.id);
   if (idx >= 0) notes[idx] = enriched;
   else notes.unshift(enriched);
-  write(NOTES_KEY, notes);
+  await writeNotes(notes);
   return enriched;
 }
 
 export async function deleteNotes(ids: string[]): Promise<void> {
   await createCurrentAutoBackup();
-  const notes = read<NoteData[]>(NOTES_KEY, []);
-  write(
-    NOTES_KEY,
-    notes.filter((n) => !ids.includes(n.id))
-  );
+  const notes = await readNotes();
+  await writeNotes(notes.filter((n) => !ids.includes(n.id)));
 }
 
 export async function transferNotesRpc(
@@ -187,7 +228,7 @@ export async function transferNotesRpc(
   toName: string,
   toLoginId: string | null
 ): Promise<number> {
-  const notes = read<NoteData[]>(NOTES_KEY, []);
+  const notes = await readNotes();
   let count = 0;
   const updated = notes.map((n) => {
     if (n.therapistUid === fromUid) {
@@ -205,7 +246,7 @@ export async function transferNotesRpc(
     }
     return n;
   });
-  write(NOTES_KEY, updated);
+  await writeNotes(updated);
   return count;
 }
 
@@ -286,6 +327,7 @@ export async function updateTherapistPasswordViaAuth(
    Export / Import
    ══════════════════════════════════════════ */
 
+/** 내보내기: 노트를 복호화한 평문 JSON 반환 */
 export async function exportAllData(): Promise<string> {
   return JSON.stringify(await buildBackupPayload("manual"), null, 2);
 }
@@ -293,11 +335,11 @@ export async function exportAllData(): Promise<string> {
 export async function importNotes(notes: NoteData[]): Promise<number> {
   if (notes.length === 0) return 0;
   await createCurrentAutoBackup();
-  const existing = read<NoteData[]>(NOTES_KEY, []);
+  const existing = await readNotes();
   const existingIds = new Set(existing.map((n) => n.id));
   const newOnes = notes.filter((n) => !existingIds.has(n.id));
   if (newOnes.length === 0) return 0;
-  write(NOTES_KEY, [...newOnes, ...existing]);
+  await writeNotes([...newOnes, ...existing]);
   return newOnes.length;
 }
 
@@ -305,7 +347,7 @@ export async function buildBackupPayload(
   reason: BackupPayload["reason"] = "manual"
 ): Promise<BackupPayload> {
   return createBackupPayload({
-    notes: read<NoteData[]>(NOTES_KEY, []),
+    notes: await readNotes(), // 복호화된 평문 노트
     therapists: read<TherapistRecord[]>(THERAPISTS_KEY, []),
     reason,
   });
@@ -324,7 +366,7 @@ export async function importBackupPayload(payload: BackupPayload): Promise<{
   validateBackupPayload(payload);
   await createCurrentAutoBackup();
 
-  const existingNotes = read<NoteData[]>(NOTES_KEY, []);
+  const existingNotes = await readNotes();
   const existingTherapists = read<TherapistRecord[]>(THERAPISTS_KEY, []);
   const noteIds = new Set(existingNotes.map((n) => n.id));
   const therapistUids = new Set(existingTherapists.map((t) => t.uid));
@@ -333,7 +375,7 @@ export async function importBackupPayload(payload: BackupPayload): Promise<{
   const importedTherapists = payload.therapists.filter((t) => !therapistUids.has(t.uid));
 
   if (importedNotes.length > 0) {
-    write(NOTES_KEY, [...importedNotes, ...existingNotes]);
+    await writeNotes([...importedNotes, ...existingNotes]);
   }
   if (importedTherapists.length > 0) {
     write(THERAPISTS_KEY, [...existingTherapists, ...importedTherapists]);
