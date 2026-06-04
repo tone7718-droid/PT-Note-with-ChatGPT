@@ -9,13 +9,13 @@ const ENC_KEY_STORAGE = "pt_enc_key_v1";
 
 let _cachedKey: CryptoKey | null = null;
 
-function bufToHex(buf: Uint8Array): string {
+function bufToHex(buf: Uint8Array<ArrayBuffer>): string {
   return Array.from(buf)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
-function hexToBuf(hex: string): Uint8Array {
+function hexToBuf(hex: string): Uint8Array<ArrayBuffer> {
   const arr = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
     arr[i / 2] = parseInt(hex.slice(i, i + 2), 16);
@@ -51,7 +51,8 @@ async function getKey(): Promise<CryptoKey> {
 
 export async function encryptData(plaintext: string): Promise<string> {
   const key = await getKey();
-  const iv = crypto.getRandomValues(new Uint8Array(12)); // AES-GCM 96-bit IV
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv); // 반환값 대신 원본 버퍼 사용 → ArrayBuffer 타입 유지
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     key,

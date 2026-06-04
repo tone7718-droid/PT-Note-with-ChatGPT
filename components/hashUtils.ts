@@ -10,13 +10,13 @@ const SALT_BYTES = 16;
 const HASH_BITS = 256;
 const V2_PREFIX = "pbkdf2v1";
 
-function bufToHex(buf: Uint8Array): string {
+function bufToHex(buf: Uint8Array<ArrayBuffer>): string {
   return Array.from(buf)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
-function hexToBuf(hex: string): Uint8Array {
+function hexToBuf(hex: string): Uint8Array<ArrayBuffer> {
   const arr = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
     arr[i / 2] = parseInt(hex.slice(i, i + 2), 16);
@@ -24,7 +24,7 @@ function hexToBuf(hex: string): Uint8Array {
   return arr;
 }
 
-async function pbkdf2Hash(plain: string, salt: Uint8Array): Promise<string> {
+async function pbkdf2Hash(plain: string, salt: Uint8Array<ArrayBuffer>): Promise<string> {
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(plain),
@@ -41,7 +41,8 @@ async function pbkdf2Hash(plain: string, salt: Uint8Array): Promise<string> {
 }
 
 export async function hashPassword(plain: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
+  const salt = new Uint8Array(SALT_BYTES);
+  crypto.getRandomValues(salt); // 반환값 대신 원본 버퍼 사용 → ArrayBuffer 타입 유지
   const hash = await pbkdf2Hash(plain, salt);
   return `${V2_PREFIX}:${bufToHex(salt)}:${hash}`;
 }
