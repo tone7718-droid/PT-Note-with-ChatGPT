@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import * as ds from "@/lib/localDataService";
-import { listAutoBackups } from "@/lib/backupService";
+import { listAutoBackups, readAutoBackupPayload } from "@/lib/backupService";
+import { invalidateEncKeyCache } from "@/lib/cryptoService";
+import { verifyPassword } from "@/lib/hashUtils";
 import type { NoteData } from "@/types";
 
 const sampleNote = (overrides: Partial<NoteData> = {}): NoteData => ({
@@ -30,6 +32,7 @@ const sampleNote = (overrides: Partial<NoteData> = {}): NoteData => ({
 beforeEach(() => {
   // 각 테스트마다 깨끗한 localStorage 로 시작
   window.localStorage.clear();
+  invalidateEncKeyCache();
 });
 
 describe("localDataService — auth", () => {
@@ -55,6 +58,20 @@ describe("localDataService — auth", () => {
     await ds.signIn("master", "0000"); // bootstrap master
     expect(await ds.reauthenticate("master", "0000")).toBe(true);
     expect(await ds.reauthenticate("master", "wrong")).toBe(false);
+  });
+
+  it("signIn ignores login ID casing", async () => {
+    const result = await ds.signIn("MASTER", "0000");
+    expect(result.therapist.id).toBe("master");
+  });
+
+  it("signIn flags default password usage", async () => {
+    const withDefault = await ds.signIn("master", "0000");
+    expect(withDefault.usingDefaultPassword).toBe(true);
+
+    await ds.updateTherapistPassword("new-pass-1");
+    const withCustom = await ds.signIn("master", "new-pass-1");
+    expect(withCustom.usingDefaultPassword).toBe(false);
   });
 });
 
@@ -117,7 +134,8 @@ describe("localDataService — notes CRUD", () => {
     expect(await ds.fetchNotes()).toHaveLength(0);
     const backups = listAutoBackups();
     expect(backups).toHaveLength(1);
-    expect(backups[0].payload.notes.map((n) => n.id)).toEqual(["a"]);
+    const payload = await readAutoBackupPayload(backups[0]);
+    expect(payload.notes.map((n) => n.id)).toEqual(["a"]);
   });
 
   it("importBackupPayload merges notes and therapists without duplicating existing ids", async () => {
@@ -138,6 +156,53 @@ describe("localDataService — notes CRUD", () => {
     expect(result).toEqual({ notesCount: 1, therapistsCount: 1 });
     expect((await ds.fetchNotes()).map((n) => n.id).sort()).toEqual(["existing", "imported"]);
     expect((await ds.fetchTherapists()).some((t) => t.uid === "t1")).toBe(true);
+  });
+});
+
+describe("localDataService — export / import security", () => {
+  it("exportAllData strips password hashes from the backup file", async () => {
+    await ds.signIn("master", "0000"); // bootstrap master
+    const json = await ds.exportAllData();
+    expect(json).not.toMatch(/pbkdf2v1:/);
+    const parsed = JSON.parse(json);
+    expect(parsed.therapists[0].passwordHash).toBe("");
+  });
+
+  it("importBackupPayload resets hash-less therapists to the default password", async () => {
+    await ds.signIn("master", "0000");
+    const payload = await ds.buildBackupPayload("manual");
+    payload.therapists.push({
+      uid: "t-nohash",
+      id: "PT-009",
+      name: "복원치료사",
+      passwordHash: "", // 내보내기 파일에는 해시가 없음
+      role: "therapist",
+      resigned: false,
+    });
+
+    await ds.importBackupPayload(payload);
+
+    const imported = (await ds.fetchTherapists()).find((t) => t.uid === "t-nohash")!;
+    expect(await verifyPassword("0000", imported.passwordHash)).toBe(true);
+  });
+});
+
+describe("localDataService — decrypt failure safety", () => {
+  it("preserves the original ciphertext when the encryption key is lost", async () => {
+    await ds.upsertNote(sampleNote({ id: "n1" }));
+    const original = window.localStorage.getItem("pt_local_notes")!;
+
+    // 암호화 키 유실 시뮬레이션 — 다른 키로 교체
+    window.localStorage.setItem("pt_enc_key_v1", "00".repeat(32));
+    invalidateEncKeyCache();
+
+    expect(await ds.fetchNotes()).toEqual([]); // 복호화 불가
+    // 원본 암호문이 복구 슬롯에 보존되어야 함
+    expect(window.localStorage.getItem("pt_local_notes_recovery_v1")).toBe(original);
+
+    // 이후 저장이 일어나도 보존본은 유지
+    await ds.upsertNote(sampleNote({ id: "n2" }));
+    expect(window.localStorage.getItem("pt_local_notes_recovery_v1")).toBe(original);
   });
 });
 

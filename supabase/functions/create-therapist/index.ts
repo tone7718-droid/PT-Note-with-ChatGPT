@@ -1,4 +1,9 @@
 // Supabase Edge Function: create-therapist
+//
+// ⚠️ 현재 미사용 — 앱은 로컬 모드(lib/localDataService.ts)로 운영 중이며
+// 치료사 등록은 localDataService.createTherapist 가 처리함.
+// 클라우드 모드 복귀 시를 대비해 보존.
+//
 // Master 계정만 호출 가능. 새 치료사의 Auth 사용자 + therapists 테이블 레코드를 생성.
 //
 // 배포: supabase functions deploy create-therapist

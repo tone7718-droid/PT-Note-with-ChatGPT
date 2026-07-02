@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useNoteStore } from "@/store/useNoteStore";
 
 interface LoginModalProps {
   onClose: () => void;
@@ -35,6 +36,9 @@ export default function LoginModal({ onClose, hideCancel }: LoginModalProps) {
 
     try {
       await signIn(userId.trim(), password);
+      // 로그인 후 노트 목록 로드 — initSync 의 onAuthStateChange 는
+      // 페이지 로드 시 한 번만 실행되므로 여기서 직접 불러와야 함
+      await useNoteStore.getState().refreshNotes();
       setLoading(false);
       onClose();
     } catch (err) {

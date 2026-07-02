@@ -1,15 +1,20 @@
 import type { NoteData, TherapistRecord } from "@/types";
+import { encryptData, decryptData } from "@/lib/cryptoService";
 
 const AUTO_BACKUPS_KEY = "pt_auto_backups";
 
 const MAX_FIELD_LENGTH = 20_000;
 
-/** 스크립트 태그 및 이벤트 핸들러 속성 제거 후 길이 제한 */
+/**
+ * 스크립트 태그 및 인라인 이벤트 핸들러 속성 제거 후 길이 제한.
+ * 핸들러 패턴은 따옴표가 뒤따르는 HTML 속성 형태(onclick=")로만 좁게 매칭 —
+ * "onset = 3일 전", "pronation = 80°" 같은 임상 기록 텍스트를 건드리지 않도록.
+ */
 function sanitizeString(val: unknown): string {
   if (typeof val !== "string") return "";
   return val
     .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/on\w+\s*=/gi, "")
+    .replace(/\bon\w+\s*=\s*["']/gi, "")
     .slice(0, MAX_FIELD_LENGTH);
 }
 
@@ -31,7 +36,9 @@ function sanitizeNote(note: NoteData): NoteData {
     noteDate: sanitizeString(note.noteDate),
   };
 }
-const MAX_AUTO_BACKUPS = 10;
+// 자동 백업은 전체 데이터의 사본이므로 localStorage 쿼터(5~10MB)를 크게 차지함.
+// 개수를 보수적으로 유지 (5개 = 최근 5회의 삭제/가져오기 시점 복구 가능)
+const MAX_AUTO_BACKUPS = 5;
 
 export interface BackupPayload {
   app: "PT-NOTE";
@@ -48,7 +55,10 @@ export interface AutoBackupEntry {
   reason: BackupPayload["reason"];
   notesCount: number;
   therapistsCount: number;
-  payload: BackupPayload;
+  /** AES-GCM 암호화된 BackupPayload JSON (현재 포맷) */
+  payloadEnc?: string;
+  /** 평문 payload (암호화 도입 전 레거시 엔트리 — 읽기만 지원) */
+  payload?: BackupPayload;
 }
 
 export function createBackupPayload({
@@ -110,7 +120,7 @@ export function validateBackupPayload(payload: unknown): {
   };
 }
 
-export function saveAutoBackup(payload: BackupPayload): AutoBackupEntry {
+export async function saveAutoBackup(payload: BackupPayload): Promise<AutoBackupEntry> {
   validateBackupPayload(payload);
   const entry: AutoBackupEntry = {
     id: `backup-${payload.exportedAt}-${Math.random().toString(36).slice(2, 8)}`,
@@ -118,7 +128,8 @@ export function saveAutoBackup(payload: BackupPayload): AutoBackupEntry {
     reason: payload.reason,
     notesCount: payload.notes.length,
     therapistsCount: payload.therapists.length,
-    payload,
+    // 노트 본문(pt_local_notes)과 동일하게 암호화 저장 — 평문 사본을 남기지 않음
+    payloadEnc: await encryptData(JSON.stringify(payload)),
   };
 
   const backups = [entry, ...readAutoBackups()].slice(0, MAX_AUTO_BACKUPS);
@@ -128,6 +139,17 @@ export function saveAutoBackup(payload: BackupPayload): AutoBackupEntry {
 
 export function listAutoBackups(): AutoBackupEntry[] {
   return readAutoBackups();
+}
+
+/** 자동 백업 엔트리의 payload 복원 (암호화/레거시 평문 모두 지원) */
+export async function readAutoBackupPayload(entry: AutoBackupEntry): Promise<BackupPayload> {
+  if (entry.payloadEnc) {
+    const parsed = JSON.parse(await decryptData(entry.payloadEnc)) as BackupPayload;
+    validateBackupPayload(parsed);
+    return parsed;
+  }
+  if (entry.payload) return entry.payload;
+  throw new Error("자동 백업 데이터가 손상되었습니다.");
 }
 
 export function parsePlainBackupText(text: string): BackupPayload {
@@ -154,7 +176,7 @@ function readAutoBackups(): AutoBackupEntry[] {
           !!entry &&
           typeof entry.id === "string" &&
           typeof entry.createdAt === "string" &&
-          !!entry.payload
+          (!!entry.payloadEnc || !!entry.payload)
         );
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -165,5 +187,16 @@ function readAutoBackups(): AutoBackupEntry[] {
 
 function writeAutoBackups(backups: AutoBackupEntry[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(AUTO_BACKUPS_KEY, JSON.stringify(backups));
+  // localStorage 쿼터 초과 시 오래된 백업부터 줄여가며 재시도.
+  // 백업 저장 실패가 삭제/가져오기 같은 본 작업을 막지 않도록 최종적으로는 포기.
+  let toWrite = backups;
+  while (toWrite.length > 0) {
+    try {
+      window.localStorage.setItem(AUTO_BACKUPS_KEY, JSON.stringify(toWrite));
+      return;
+    } catch {
+      toWrite = toWrite.slice(0, toWrite.length - 1);
+    }
+  }
+  console.warn("[backupService] 저장 공간 부족으로 자동 백업을 저장하지 못했습니다.");
 }

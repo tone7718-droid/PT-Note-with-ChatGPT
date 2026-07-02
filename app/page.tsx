@@ -16,7 +16,6 @@ function HomeContent() {
   const isNoteLoading = useNoteStore((s) => s.isLoading);
   const isLoading = isAuthLoading || isNoteLoading;
   const initSync = useNoteStore((s) => s.initSync);
-  const checkLocalData = useNoteStore((s) => s.checkLocalData);
   const selectedNoteId = useNoteStore((s) => s.selectedNoteId);
   const initTheme = useThemeStore((s) => s.init);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
@@ -30,9 +29,8 @@ function HomeContent() {
   }, [initTheme]);
 
   useEffect(() => {
-    checkLocalData();
     initSync();
-  }, [checkLocalData, initSync]);
+  }, [initSync]);
 
   // 모바일 환경에서 노트가 변경되면 drawer 자동 닫음 (목록 → 노트 보기 전환)
   useEffect(() => {

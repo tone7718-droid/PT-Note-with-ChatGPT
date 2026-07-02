@@ -2,7 +2,7 @@ export interface TherapistRecord {
   uid: string;
   id: string | null;
   name: string;
-  passwordHash: string; // Supabase Auth에서 관리
+  passwordHash: string; // PBKDF2 해시 (lib/hashUtils) — 내보내기 파일에는 포함되지 않음
   role: "therapist" | "master";
   resigned: boolean;
 }

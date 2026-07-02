@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X, Save, Sparkles } from "lucide-react";
-import { loadMacros, saveMacros, MACRO_SLOT_COUNT } from "@/lib/macros";
+import { loadMacros, saveMacros } from "@/lib/macros";
 
 interface MacroManagementModalProps {
   onClose: () => void;

@@ -7,6 +7,8 @@ interface AuthStore {
   therapists: TherapistRecord[];
   isLoading: boolean;
   error: string | null;
+  /** 기본 비밀번호("0000")로 로그인한 상태 — 변경 안내 배너 표시용 */
+  needsPasswordChange: boolean;
   setTherapist: (t: Therapist | null) => void;
   setTherapists: (ts: TherapistRecord[]) => void;
   signIn: (loginId: string, password: string) => Promise<void>;
@@ -25,7 +27,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
   therapists: [],
   isLoading: false,
   error: null,
-  
+  needsPasswordChange: false,
+
   setTherapist: (t) => set({ therapist: t }),
   setTherapists: (ts) => set({ therapists: ts }),
   setError: (err) => set({ error: err }),
@@ -34,9 +37,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
   signIn: async (loginId, password) => {
     set({ isLoading: true, error: null });
     try {
-      const { therapist: t } = await ds.signIn(loginId, password);
-      set({ therapist: t });
-      // 이 부분에서 fetchTherapists도 할 수 있지만 그건 noteData 연동에서 진행하거나 여기서 진행
+      const { therapist: t, usingDefaultPassword } = await ds.signIn(loginId, password);
+      set({ therapist: t, needsPasswordChange: usingDefaultPassword });
       const fetchedTherapists = await ds.fetchTherapists();
       set({ therapists: fetchedTherapists });
     } catch (err) {
@@ -49,7 +51,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   signOut: async () => {
     await ds.signOut();
-    set({ therapist: null, therapists: [] });
+    set({ therapist: null, therapists: [], needsPasswordChange: false });
   },
 
   reauthenticate: async (loginId, password) => {
@@ -57,7 +59,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   registerTherapist: async (loginId, name, password) => {
-    const newRecord = await ds.createTherapistViaEdgeFunction(loginId, name, password);
+    const newRecord = await ds.createTherapist(loginId, name, password);
     set((state) => ({ therapists: [...state.therapists, newRecord] }));
   },
 
@@ -78,6 +80,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   updateTherapistPassword: async (newPassword) => {
-    await ds.updateTherapistPasswordViaAuth(newPassword);
+    await ds.updateTherapistPassword(newPassword);
+    set({ needsPasswordChange: false });
   },
 }));

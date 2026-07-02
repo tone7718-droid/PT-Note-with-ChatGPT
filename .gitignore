@@ -52,3 +52,6 @@ next-env.d.ts
 # IDE / dev artifacts
 /.claude/
 /lint_output.txt
+
+# 데스크톱 설치 파일은 GitHub Releases 로만 배포 (저장소에 커밋 금지)
+/release/

@@ -17,7 +17,7 @@
  */
 
 import type { NoteData, TherapistRecord, Therapist } from "@/types";
-import { hashPassword, verifyPassword, isLegacyHash } from "@/components/hashUtils";
+import { hashPassword, verifyPassword, isLegacyHash } from "@/lib/hashUtils";
 import { encryptData, decryptData } from "@/lib/cryptoService";
 import {
   createBackupPayload,
@@ -60,6 +60,13 @@ async function writeNotes(notes: NoteData[]): Promise<void> {
 }
 
 /**
+ * 복호화 실패한 원본 데이터 보존 슬롯.
+ * 키 유실/손상 시 이후 저장이 원본 암호문을 덮어써도 복구 시도가 가능하도록,
+ * 가장 먼저 실패한 원본을 그대로 보관한다 (이미 보존본이 있으면 덮어쓰지 않음).
+ */
+const NOTES_RECOVERY_KEY = "pt_local_notes_recovery_v1";
+
+/**
  * 환자 노트 복호화 읽기.
  * 기존 평문 데이터(마이그레이션 전)는 JSON 폴백으로 자동 처리.
  */
@@ -79,8 +86,16 @@ async function readNotes(): Promise<NoteData[]> {
         return plain;
       }
     } catch {
-      /* 손상된 데이터는 빈 배열 반환 */
+      /* 평문도 아님 → 아래 보존 처리로 */
     }
+    // 암호문인데 복호화 실패 (키 유실/손상 등).
+    // 빈 배열을 반환하면 다음 저장이 원본을 덮어쓰므로, 원본을 먼저 보존한다.
+    if (!window.localStorage.getItem(NOTES_RECOVERY_KEY)) {
+      window.localStorage.setItem(NOTES_RECOVERY_KEY, raw);
+    }
+    console.error(
+      `[localDataService] 저장된 노트를 복호화하지 못했습니다. 원본을 ${NOTES_RECOVERY_KEY} 에 보존했습니다.`
+    );
     return [];
   }
 }
@@ -110,10 +125,11 @@ async function ensureBootstrapMaster(): Promise<void> {
 export async function signIn(
   loginId: string,
   password: string
-): Promise<{ therapist: Therapist }> {
+): Promise<{ therapist: Therapist; usingDefaultPassword: boolean }> {
   await ensureBootstrapMaster();
   const therapists = read<TherapistRecord[]>(THERAPISTS_KEY, []);
-  const found = therapists.find((t) => t.id === loginId);
+  const normalizedId = loginId.trim().toLowerCase();
+  const found = therapists.find((t) => t.id?.toLowerCase() === normalizedId);
 
   if (!found) throw new Error("ID 또는 비밀번호를 확인해주세요.");
   if (found.resigned) throw new Error("퇴사 처리된 계정입니다.");
@@ -137,7 +153,8 @@ export async function signIn(
     role: found.role,
   };
   write(SESSION_KEY, session);
-  return { therapist: session };
+  // 기본 비밀번호("0000") 사용 여부 — UI 에서 변경 안내 배너 표시용
+  return { therapist: session, usingDefaultPassword: password === DEFAULT_MASTER_PW };
 }
 
 export async function signOut(): Promise<void> {
@@ -168,7 +185,8 @@ export async function reauthenticate(
   password: string
 ): Promise<boolean> {
   const therapists = read<TherapistRecord[]>(THERAPISTS_KEY, []);
-  const found = therapists.find((t) => t.id === loginId);
+  const normalizedId = loginId.trim().toLowerCase();
+  const found = therapists.find((t) => t.id?.toLowerCase() === normalizedId);
   if (!found) return false;
   return verifyPassword(password, found.passwordHash);
 }
@@ -259,7 +277,8 @@ export async function fetchTherapists(): Promise<TherapistRecord[]> {
   return read<TherapistRecord[]>(THERAPISTS_KEY, []);
 }
 
-export async function createTherapistViaEdgeFunction(
+/** 새 치료사 등록 (로컬 모드 — Supabase Edge Function 미사용) */
+export async function createTherapist(
   loginId: string,
   name: string,
   password: string
@@ -309,7 +328,8 @@ export async function deleteTherapistDb(uid: string): Promise<void> {
   write(THERAPISTS_KEY, therapists.filter((t) => t.uid !== uid));
 }
 
-export async function updateTherapistPasswordViaAuth(
+/** 현재 로그인된 치료사 본인의 비밀번호 변경 */
+export async function updateTherapistPassword(
   newPassword: string
 ): Promise<void> {
   const session = read<Therapist | null>(SESSION_KEY, null);
@@ -327,9 +347,18 @@ export async function updateTherapistPasswordViaAuth(
    Export / Import
    ══════════════════════════════════════════ */
 
-/** 내보내기: 노트를 복호화한 평문 JSON 반환 */
+/**
+ * 내보내기: 노트를 복호화한 평문 JSON 반환.
+ * 보안: 비밀번호 해시는 파일에 포함하지 않는다 (백업 파일은 공유·유출되기 쉬움).
+ * 해시 없는 치료사 계정은 가져오기 시 기본 비밀번호("0000")로 초기화됨.
+ */
 export async function exportAllData(): Promise<string> {
-  return JSON.stringify(await buildBackupPayload("manual"), null, 2);
+  const payload = await buildBackupPayload("manual");
+  const sanitized: BackupPayload = {
+    ...payload,
+    therapists: payload.therapists.map((t) => ({ ...t, passwordHash: "" })),
+  };
+  return JSON.stringify(sanitized, null, 2);
 }
 
 export async function importNotes(notes: NoteData[]): Promise<number> {
@@ -354,9 +383,14 @@ export async function buildBackupPayload(
 }
 
 export async function createCurrentAutoBackup(): Promise<void> {
-  const payload = await buildBackupPayload("auto");
-  if (payload.notes.length === 0 && payload.therapists.length === 0) return;
-  saveAutoBackup(payload);
+  try {
+    const payload = await buildBackupPayload("auto");
+    if (payload.notes.length === 0 && payload.therapists.length === 0) return;
+    await saveAutoBackup(payload);
+  } catch (err) {
+    // 백업은 안전장치일 뿐 — 실패해도 삭제/가져오기 등 본 작업은 진행
+    console.warn("[localDataService] 자동 백업 생성 실패:", err);
+  }
 }
 
 export async function importBackupPayload(payload: BackupPayload): Promise<{
@@ -372,7 +406,13 @@ export async function importBackupPayload(payload: BackupPayload): Promise<{
   const therapistUids = new Set(existingTherapists.map((t) => t.uid));
 
   const importedNotes = payload.notes.filter((n) => !noteIds.has(n.id));
-  const importedTherapists = payload.therapists.filter((t) => !therapistUids.has(t.uid));
+
+  // 내보내기 파일에는 보안상 비밀번호 해시가 없음 → 기본 비밀번호("0000")로
+  // 초기화해서 가져오고, 해당 계정은 로그인 후 비밀번호를 변경하도록 안내
+  const defaultPwHash = await hashPassword(DEFAULT_MASTER_PW);
+  const importedTherapists = payload.therapists
+    .filter((t) => !therapistUids.has(t.uid))
+    .map((t) => (t.passwordHash ? t : { ...t, passwordHash: defaultPwHash }));
 
   if (importedNotes.length > 0) {
     await writeNotes([...importedNotes, ...existingNotes]);

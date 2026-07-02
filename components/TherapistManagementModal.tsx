@@ -3,19 +3,27 @@
 import { useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { TherapistRecord } from "@/types";
-import { X, Users, Trash2, AlertCircle, ShieldCheck } from "lucide-react";
+import { X, Users, Trash2, AlertCircle, ShieldCheck, KeyRound } from "lucide-react";
+
+const PASSWORD_PATTERN = /^[A-Za-z0-9!@#$%^&*_-]{4,20}$/;
+const PASSWORD_RULE_MSG = "비밀번호는 4~20자의 영문/숫자/특수문자(!@#$%^&*_-)여야 합니다.";
+
+export type TherapistModalTab = "register" | "list" | "password";
 
 interface TherapistManagementModalProps {
   onClose: () => void;
+  initialTab?: TherapistModalTab;
 }
 
-export default function TherapistManagementModal({ onClose }: TherapistManagementModalProps) {
+export default function TherapistManagementModal({ onClose, initialTab }: TherapistManagementModalProps) {
   const therapists = useAuthStore((s) => s.therapists);
   const registerTherapist = useAuthStore((s) => s.registerTherapist);
   const resignTherapist = useAuthStore((s) => s.resignTherapist);
   const deleteTherapist = useAuthStore((s) => s.deleteTherapist);
+  const updateTherapistPassword = useAuthStore((s) => s.updateTherapistPassword);
+  const reauthenticate = useAuthStore((s) => s.reauthenticate);
   const currentTherapist = useAuthStore((s) => s.therapist);
-  const [activeTab, setActiveTab] = useState<"register" | "list">("register");
+  const [activeTab, setActiveTab] = useState<TherapistModalTab>(initialTab ?? "register");
 
   /* 등록 폼 */
   const [name, setName] = useState("");
@@ -35,6 +43,14 @@ export default function TherapistManagementModal({ onClose }: TherapistManagemen
   const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
 
+  /* 내 비밀번호 변경 */
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwError, setPwError] = useState("");
+  const [pwSuccess, setPwSuccess] = useState("");
+  const [changingPw, setChangingPw] = useState(false);
+
   const activeTherapists = therapists.filter((t) => !t.resigned && t.role !== "master");
   const resignedTherapists = therapists.filter((t) => t.resigned);
 
@@ -43,9 +59,10 @@ export default function TherapistManagementModal({ onClose }: TherapistManagemen
     setRegisterError("");
     setRegisterSuccess("");
 
+    if (currentTherapist?.role !== "master") { setRegisterError("마스터 계정만 치료사를 등록할 수 있습니다."); return; }
     if (!name.trim()) { setRegisterError("이름을 입력해주세요."); return; }
     if (!/^PT-\d{3}$/.test(id)) { setRegisterError("ID 형식이 올바르지 않습니다 (PT-001 ~ PT-999)."); return; }
-    if (!/^\d{4,8}$/.test(password)) { setRegisterError("비밀번호는 숫자 4~8자리여야 합니다."); return; }
+    if (!PASSWORD_PATTERN.test(password)) { setRegisterError(PASSWORD_RULE_MSG); return; }
 
     setRegistering(true);
     try {
@@ -76,6 +93,30 @@ export default function TherapistManagementModal({ onClose }: TherapistManagemen
       setResignError((err as Error).message || "퇴사 처리 중 오류가 발생했습니다.");
     } finally {
       setResigning(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwError("");
+    setPwSuccess("");
+
+    if (!currentTherapist?.id) { setPwError("로그인 정보를 확인할 수 없습니다."); return; }
+    if (!PASSWORD_PATTERN.test(newPw)) { setPwError(PASSWORD_RULE_MSG); return; }
+    if (newPw !== confirmPw) { setPwError("새 비밀번호가 서로 일치하지 않습니다."); return; }
+    if (newPw === "0000") { setPwError("기본 비밀번호(0000)는 사용할 수 없습니다."); return; }
+
+    setChangingPw(true);
+    try {
+      const ok = await reauthenticate(currentTherapist.id, currentPw);
+      if (!ok) { setPwError("현재 비밀번호가 일치하지 않습니다."); return; }
+      await updateTherapistPassword(newPw);
+      setPwSuccess("비밀번호가 변경되었습니다.");
+      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+    } catch (err) {
+      setPwError((err as Error).message || "비밀번호 변경 중 오류가 발생했습니다.");
+    } finally {
+      setChangingPw(false);
     }
   };
 
@@ -120,6 +161,10 @@ export default function TherapistManagementModal({ onClose }: TherapistManagemen
             className={`flex-1 py-4 text-sm font-bold transition-all ${activeTab === "list" ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/30" : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}>
             치료사 목록 ({activeTherapists.length})
           </button>
+          <button onClick={() => setActiveTab("password")}
+            className={`flex-1 py-4 text-sm font-bold transition-all ${activeTab === "password" ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/30" : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}>
+            비밀번호 변경
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-8">
@@ -138,8 +183,8 @@ export default function TherapistManagementModal({ onClose }: TherapistManagemen
                       className="w-full p-4 border-2 border-gray-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all font-bold text-lg outline-none" />
                   </div>
                   <div>
-                    <label htmlFor="reg-pw" className="block text-sm font-bold text-gray-700 mb-1.5">비밀번호 (숫자)</label>
-                    <input id="reg-pw" type="password" value={password} onChange={(e) => setPassword(e.target.value.replace(/\D/g, ""))} placeholder="4~8자리"
+                    <label htmlFor="reg-pw" className="block text-sm font-bold text-gray-700 mb-1.5">비밀번호</label>
+                    <input id="reg-pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="4~20자"
                       className="w-full p-4 border-2 border-gray-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all font-bold text-lg outline-none tracking-widest" />
                   </div>
                 </div>
@@ -150,7 +195,7 @@ export default function TherapistManagementModal({ onClose }: TherapistManagemen
                 {registering ? "등록 중..." : "등록하기"}
               </button>
             </form>
-          ) : (
+          ) : activeTab === "list" ? (
             <div className="space-y-6">
               <div>
                 <h3 className="text-sm font-bold text-gray-400 mb-3 uppercase tracking-wider">재직 중인 치료사</h3>
@@ -197,6 +242,35 @@ export default function TherapistManagementModal({ onClose }: TherapistManagemen
                 </div>
               )}
             </div>
+          ) : (
+            <form onSubmit={handleChangePassword} className="space-y-6 max-w-md mx-auto">
+              <p className="text-sm text-gray-500 flex items-center gap-2">
+                <KeyRound size={16} className="text-blue-600 shrink-0" />
+                현재 로그인된 <span className="font-bold text-gray-800">{currentTherapist?.name} ({currentTherapist?.id})</span> 계정의 비밀번호를 변경합니다.
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="pw-current" className="block text-sm font-bold text-gray-700 mb-1.5">현재 비밀번호</label>
+                  <input id="pw-current" type="password" value={currentPw} onChange={(e) => { setCurrentPw(e.target.value); setPwError(""); }}
+                    className="w-full p-4 border-2 border-gray-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all font-bold text-lg outline-none tracking-widest" />
+                </div>
+                <div>
+                  <label htmlFor="pw-new" className="block text-sm font-bold text-gray-700 mb-1.5">새 비밀번호 (4~20자)</label>
+                  <input id="pw-new" type="password" value={newPw} onChange={(e) => { setNewPw(e.target.value); setPwError(""); }}
+                    className="w-full p-4 border-2 border-gray-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all font-bold text-lg outline-none tracking-widest" />
+                </div>
+                <div>
+                  <label htmlFor="pw-confirm" className="block text-sm font-bold text-gray-700 mb-1.5">새 비밀번호 확인</label>
+                  <input id="pw-confirm" type="password" value={confirmPw} onChange={(e) => { setConfirmPw(e.target.value); setPwError(""); }}
+                    className="w-full p-4 border-2 border-gray-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all font-bold text-lg outline-none tracking-widest" />
+                </div>
+              </div>
+              {pwError && <p className="text-red-500 text-sm font-bold flex items-center gap-1.5 bg-red-50 p-3 rounded-xl"><AlertCircle size={16} />{pwError}</p>}
+              {pwSuccess && <p className="text-green-600 text-sm font-bold flex items-center gap-1.5 bg-green-50 p-3 rounded-xl"><ShieldCheck size={16} />{pwSuccess}</p>}
+              <button type="submit" disabled={changingPw} className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold text-lg rounded-2xl shadow-lg transition-all transform hover:-translate-y-0.5">
+                {changingPw ? "변경 중..." : "비밀번호 변경"}
+              </button>
+            </form>
           )}
         </div>
       </div>

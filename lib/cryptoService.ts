@@ -1,11 +1,16 @@
 /* ── AES-GCM localStorage 암호화 서비스 ──
  *
  * 랜덤 256-bit 키를 최초 실행 시 생성해 별도 localStorage 슬롯에 보관.
- * 환자 노트(pt_local_notes)를 암호화해 평문 노출을 방지.
+ * 환자 노트(pt_local_notes)와 자동 백업을 암호화해 평문 노출을 방지.
  * 내보내기/가져오기는 localDataService에서 복호화 후 처리해 서식이 유지됨.
+ *
+ * 저장 포맷:
+ *   v2:<iv_base64>:<ciphertext_base64>   — 현재 (base64, hex 대비 ~33% 절약)
+ *   <iv_hex(24자)>:<ciphertext_hex>       — 레거시 (읽기만 지원, 다음 저장 시 v2 로 전환)
  */
 
 const ENC_KEY_STORAGE = "pt_enc_key_v1";
+const V2_PREFIX = "v2:";
 
 let _cachedKey: CryptoKey | null = null;
 
@@ -20,6 +25,23 @@ function hexToBuf(hex: string): Uint8Array<ArrayBuffer> {
   for (let i = 0; i < hex.length; i += 2) {
     arr[i / 2] = parseInt(hex.slice(i, i + 2), 16);
   }
+  return arr;
+}
+
+function bufToB64(buf: Uint8Array<ArrayBuffer>): string {
+  // 큰 배열에서 String.fromCharCode(...buf) 는 콜스택 한도를 넘으므로 청크 처리
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < buf.length; i += CHUNK) {
+    binary += String.fromCharCode(...buf.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+function b64ToBuf(b64: string): Uint8Array<ArrayBuffer> {
+  const binary = atob(b64);
+  const arr = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
   return arr;
 }
 
@@ -58,15 +80,28 @@ export async function encryptData(plaintext: string): Promise<string> {
     key,
     new TextEncoder().encode(plaintext)
   );
-  return `${bufToHex(iv)}:${bufToHex(new Uint8Array(ciphertext))}`;
+  return `${V2_PREFIX}${bufToB64(iv)}:${bufToB64(new Uint8Array(ciphertext))}`;
 }
 
 export async function decryptData(encrypted: string): Promise<string> {
-  const sep = encrypted.indexOf(":");
-  if (sep !== 24) throw new Error("invalid format"); // IV는 항상 24자 hex (12 bytes)
+  let iv: Uint8Array<ArrayBuffer>;
+  let ciphertext: Uint8Array<ArrayBuffer>;
+
+  if (encrypted.startsWith(V2_PREFIX)) {
+    const body = encrypted.slice(V2_PREFIX.length);
+    const sep = body.indexOf(":");
+    if (sep < 0) throw new Error("invalid format");
+    iv = b64ToBuf(body.slice(0, sep));
+    ciphertext = b64ToBuf(body.slice(sep + 1));
+  } else {
+    // 레거시 hex 포맷 — IV는 항상 24자 hex (12 bytes)
+    const sep = encrypted.indexOf(":");
+    if (sep !== 24) throw new Error("invalid format");
+    iv = hexToBuf(encrypted.slice(0, sep));
+    ciphertext = hexToBuf(encrypted.slice(sep + 1));
+  }
+
   const key = await getKey();
-  const iv = hexToBuf(encrypted.slice(0, sep));
-  const ciphertext = hexToBuf(encrypted.slice(sep + 1));
   const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
   return new TextDecoder().decode(plaintext);
 }

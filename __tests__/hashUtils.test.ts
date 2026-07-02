@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hashPassword, verifyPassword, isLegacyHash } from "@/components/hashUtils";
+import { hashPassword, verifyPassword, isLegacyHash } from "@/lib/hashUtils";
 
 describe("hashUtils — PBKDF2", () => {
   it("hashPassword returns pbkdf2v1 prefixed string", async () => {

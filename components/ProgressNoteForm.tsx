@@ -50,6 +50,16 @@ export default function ProgressNoteForm() {
   const containerRef = useRef<HTMLDivElement>(null);
   const outputMenuRef = useRef<HTMLDivElement>(null);
 
+  // notes 는 ref 로 참조 — notes 배열 갱신(삭제·이관 등)이
+  // 작성 중인 폼을 리셋시키지 않도록 로드 effect 의존성에서 제외
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+
+  // formState.isDirty 는 렌더 중에 읽어야 프록시 구독이 활성화됨
+  const { isDirty } = methods.formState;
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+
   // 출력 메뉴 외부 클릭 시 닫기
   useEffect(() => {
     if (!outputMenuOpen) return;
@@ -99,21 +109,24 @@ export default function ProgressNoteForm() {
     // 기존 노트 편집 모드 → draft 배너 숨김
     setPendingDraft(null);
     setLastDraftSavedAt(null);
-    const note = notes.find((n) => n.id === selectedNoteId);
+    const note = notesRef.current.find((n) => n.id === selectedNoteId);
     if (note) {
       const roms = note.rom && note.rom.length > 0 ? note.rom : [{ joint: "", measuredROM: "", normalRange: "" }];
       reset({ ...note, rom: roms });
       setCurrentNoteId(note.id ?? null);
       setSavedTherapist(note.therapist ?? null);
     }
-  }, [selectedNoteId, notes, reset]);
+  }, [selectedNoteId, reset]);
 
   /* ── 자동 임시 저장 (5초 주기) ──
      새 노트 작성 모드에서만 작동. 빈 폼은 저장 안 함.
+     사용자가 직접 수정하기 전(isDirty=false)에는 저장하지 않음 —
+     노트 복사 직후 등에 기존 draft 를 덮어쓰지 않기 위함.
      [저장] 성공 시 clearDraft() 로 정리됨. */
   useEffect(() => {
     if (currentNoteId !== null) return; // 기존 노트 수정 중은 제외
     const interval = window.setInterval(() => {
+      if (!isDirtyRef.current) return;
       const data = methods.getValues();
       if (!isNoteContentful(data)) return;
       const savedAt = new Date();

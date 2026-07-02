@@ -5,16 +5,16 @@ import { useAuthStore } from "./useAuthStore";
 import {
   listAutoBackups,
   parsePlainBackupText,
+  readAutoBackupPayload,
   type AutoBackupEntry,
 } from "@/lib/backupService";
 
 interface NoteStore {
   notes: NoteData[];
   selectedNoteId: string | null;
-  hasLocalData: boolean;
   isLoading: boolean;
   error: string | null;
-  
+
   selectNote: (id: string | null) => void;
   createNewNote: () => void;
   refreshNotes: () => Promise<void>;
@@ -26,41 +26,17 @@ interface NoteStore {
   importBackupText: (text: string) => Promise<{ notesCount: number; therapistsCount: number }>;
   getAutoBackups: () => AutoBackupEntry[];
   restoreAutoBackup: (id: string) => Promise<{ notesCount: number; therapistsCount: number }>;
-  checkLocalData: () => void;
   initSync: () => void;
 }
 
 export const useNoteStore = create<NoteStore>((set, get) => ({
   notes: [],
   selectedNoteId: null,
-  hasLocalData: false,
   isLoading: false,
   error: null,
 
   selectNote: (id) => set({ selectedNoteId: id }),
   createNewNote: () => set({ selectedNoteId: null }),
-
-  checkLocalData: () => {
-    // 구(舊) Context 기반 키 + 현재 로컬 모드 키 모두 감지
-    // 클라우드 복귀 시 "로컬에 마이그레이션할 데이터가 있는지" 판단용
-    if (typeof window !== "undefined") {
-      try {
-        const keys = [
-          "progressNotes",     // 구버전 Context 기반
-          "pt_therapists",     // 구버전 Context 기반
-          "pt_local_notes",    // 현재 localDataService
-          "pt_local_therapists", // 현재 localDataService
-        ];
-        const hasData = keys.some((k) => {
-          const v = localStorage.getItem(k);
-          return v && v !== "[]";
-        });
-        if (hasData) set({ hasLocalData: true });
-      } catch (err) {
-        console.warn("[init] localStorage access failed:", err);
-      }
-    }
-  },
 
   initSync: () => {
     // Auth 상태 리스너 등록 (cleanup은 앱 생명주기 동안 유지하므로 subscription 미보관)
@@ -194,7 +170,8 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
   restoreAutoBackup: async (id) => {
     const found = listAutoBackups().find((backup) => backup.id === id);
     if (!found) throw new Error("자동 백업을 찾을 수 없습니다.");
-    const result = await ds.importBackupPayload(found.payload);
+    const payload = await readAutoBackupPayload(found);
+    const result = await ds.importBackupPayload(payload);
     const [updatedNotes, updatedTherapists] = await Promise.all([
       ds.fetchNotes(),
       ds.fetchTherapists(),

@@ -3,9 +3,9 @@
 import { useMemo, useState, useRef } from "react";
 import { useNoteStore } from "@/store/useNoteStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles, Filter, RotateCcw } from "lucide-react";
+import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles, Filter, RotateCcw, AlertTriangle } from "lucide-react";
 import LoginModal from "./LoginModal";
-import TherapistManagementModal from "./TherapistManagementModal";
+import TherapistManagementModal, { type TherapistModalTab } from "./TherapistManagementModal";
 import MacroManagementModal from "./MacroManagementModal";
 import { getDeleteToolbarAction } from "@/lib/progressNoteUi";
 import {
@@ -29,6 +29,7 @@ export default function Sidebar() {
   const therapists = useAuthStore((s) => s.therapists);
   const signOut = useAuthStore((s) => s.signOut);
   const reauthenticate = useAuthStore((s) => s.reauthenticate);
+  const needsPasswordChange = useAuthStore((s) => s.needsPasswordChange);
 
   const getResignedTherapistNotes = () => {
     const resigned = therapists.filter((t) => t.resigned);
@@ -43,6 +44,7 @@ export default function Sidebar() {
   const [search, setSearch] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showTherapistModal, setShowTherapistModal] = useState(false);
+  const [therapistModalTab, setTherapistModalTab] = useState<TherapistModalTab>("register");
   const [showMacroModal, setShowMacroModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -221,7 +223,7 @@ export default function Sidebar() {
               <div className="fixed inset-0 z-[50]" onClick={() => setShowDropdown(false)} />
               <div className="absolute left-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-[60] animate-in fade-in slide-in-from-top-2 duration-150 dark:bg-slate-900 dark:border-slate-700">
                 <button onClick={() => { setShowLoginModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300"><LogIn size={18} /> 로그인</button>
-                <button onClick={() => { setShowTherapistModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-green-300"><UserPlus size={18} /> 치료사 등록 / 관리</button>
+                <button onClick={() => { setTherapistModalTab("register"); setShowTherapistModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-green-300"><UserPlus size={18} /> 치료사 등록 / 관리</button>
                 <button onClick={() => { setShowMacroModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300"><Sparkles size={18} /> 매크로 관리 (/도수1~20)</button>
                 <hr className="my-1 border-gray-100 dark:border-slate-800" />
                 <button onClick={() => { handleExportData(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-purple-300"><Download size={18} /> 데이터 내보내기</button>
@@ -232,7 +234,7 @@ export default function Sidebar() {
         </div>
         <div className="flex-1 relative">
           <input id="sidebar-search" type="text" placeholder="환자 이름 · 진단명 검색..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-4 pr-11 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-medium outline-none dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500" aria-label="기록 검색" />
-          <button className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-blue-500 dark:text-slate-500 dark:hover:text-blue-300" aria-label="검색 실행"><Search size={18} /></button>
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 dark:text-slate-500 pointer-events-none" aria-hidden="true"><Search size={18} /></span>
         </div>
         <button
           type="button"
@@ -350,6 +352,19 @@ export default function Sidebar() {
             </div>
             <button onClick={handleLogout} className="text-xs text-red-500 hover:text-red-700 font-bold bg-white px-2.5 py-1.5 rounded-lg border border-red-100 shadow-sm transition-colors dark:bg-slate-900 dark:border-red-900/60 dark:text-red-300 dark:hover:text-red-200">로그아웃</button>
           </div>
+          {needsPasswordChange && (
+            <div className="mt-2 flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-2xl text-xs font-bold text-red-700 dark:bg-red-950/30 dark:border-red-900/60 dark:text-red-300">
+              <AlertTriangle size={14} className="shrink-0" />
+              <span className="flex-1">기본 비밀번호(0000) 사용 중 — 보안을 위해 변경하세요.</span>
+              <button
+                type="button"
+                onClick={() => { setTherapistModalTab("password"); setShowTherapistModal(true); }}
+                className="shrink-0 px-2.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+              >
+                변경
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -444,7 +459,7 @@ export default function Sidebar() {
       </div>
 
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
-      {showTherapistModal && <TherapistManagementModal onClose={() => setShowTherapistModal(false)} />}
+      {showTherapistModal && <TherapistManagementModal onClose={() => setShowTherapistModal(false)} initialTab={therapistModalTab} />}
       {showMacroModal && <MacroManagementModal onClose={() => setShowMacroModal(false)} />}
       <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportData} className="hidden" />
 
