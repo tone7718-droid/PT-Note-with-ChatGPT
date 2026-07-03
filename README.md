@@ -18,7 +18,7 @@
 
 ## Distribution
 
-- **Web**: https://ptnote.vercel.app
+- **Web**: https://ptnote3.vercel.app
 - **Windows desktop**: Download the latest installer from [GitHub Releases](https://github.com/tone7718-droid/PT-Note-with-ChatGPT/releases/latest).
 
 The desktop app includes a built-in auto-updater that checks
