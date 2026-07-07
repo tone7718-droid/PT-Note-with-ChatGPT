@@ -212,21 +212,78 @@ function sanitizePainAreas(note: NoteData): NoteData {
   return note;
 }
 
+function newPatientId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `patient-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function resolvePatientId(
+  note: NoteData,
+  pool: NoteData[],
+  options: { allowNameOnly?: boolean } = {}
+): string {
+  if (note.patientId) return note.patientId;
+
+  const chartNo = note.chartNo?.trim();
+  if (chartNo) {
+    const match = pool.find((n) => n.patientId && n.chartNo?.trim() === chartNo);
+    if (match?.patientId) return match.patientId;
+  }
+
+  const name = note.patientName?.trim();
+  const birth = note.birthDate?.trim();
+  if (name && birth) {
+    const match = pool.find(
+      (n) => n.patientId && n.patientName?.trim() === name && n.birthDate?.trim() === birth
+    );
+    if (match?.patientId) return match.patientId;
+  }
+
+  if (options.allowNameOnly && name) {
+    const match = pool.find((n) => n.patientId && n.patientName?.trim() === name);
+    if (match?.patientId) return match.patientId;
+  }
+
+  return newPatientId();
+}
+
+async function ensurePatientIds(notes: NoteData[]): Promise<NoteData[]> {
+  if (notes.length === 0 || notes.every((n) => n.patientId)) return notes;
+
+  const ordered = [...notes].sort(
+    (a, b) => new Date(a.savedAt || 0).getTime() - new Date(b.savedAt || 0).getTime()
+  );
+  for (const note of ordered) {
+    if (!note.patientId) {
+      note.patientId = resolvePatientId(note, ordered, { allowNameOnly: true });
+    }
+  }
+  await writeNotes(notes);
+  return notes;
+}
+
 export async function fetchNotes(): Promise<NoteData[]> {
-  return (await readNotes())
+  const notes = await ensurePatientIds(await readNotes());
+  return notes
     .map(sanitizePainAreas)
     .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
 }
 
 export async function upsertNote(note: NoteData): Promise<NoteData> {
   const session = read<Therapist | null>(SESSION_KEY, null);
+  const notes = await ensurePatientIds(await readNotes());
   const enriched: NoteData = {
     ...note,
+    patientId:
+      note.patientId ||
+      notes.find((n) => n.id === note.id)?.patientId ||
+      resolvePatientId(note, notes),
     therapist: note.therapist ?? session ?? undefined,
     therapistUid: note.therapistUid || session?.uid || "",
   };
 
-  const notes = await readNotes();
   const idx = notes.findIndex((n) => n.id === enriched.id);
   if (idx >= 0) notes[idx] = enriched;
   else notes.unshift(enriched);
@@ -364,10 +421,18 @@ export async function exportAllData(): Promise<string> {
 export async function importNotes(notes: NoteData[]): Promise<number> {
   if (notes.length === 0) return 0;
   await createCurrentAutoBackup();
-  const existing = await readNotes();
+  const existing = await ensurePatientIds(await readNotes());
   const existingIds = new Set(existing.map((n) => n.id));
   const newOnes = notes.filter((n) => !existingIds.has(n.id));
   if (newOnes.length === 0) return 0;
+
+  const pool = [...existing, ...newOnes];
+  for (const note of newOnes) {
+    if (!note.patientId) {
+      note.patientId = resolvePatientId(note, pool, { allowNameOnly: true });
+    }
+  }
+
   await writeNotes([...newOnes, ...existing]);
   return newOnes.length;
 }
@@ -424,5 +489,20 @@ export async function importBackupPayload(payload: BackupPayload): Promise<{
   return {
     notesCount: importedNotes.length,
     therapistsCount: importedTherapists.length,
+  };
+}
+
+export async function restoreBackupPayload(payload: BackupPayload): Promise<{
+  notesCount: number;
+  therapistsCount: number;
+}> {
+  validateBackupPayload(payload);
+  await createCurrentAutoBackup();
+  await writeNotes(payload.notes);
+  write(THERAPISTS_KEY, payload.therapists);
+
+  return {
+    notesCount: payload.notes.length,
+    therapistsCount: payload.therapists.length,
   };
 }

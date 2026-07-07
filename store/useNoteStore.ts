@@ -171,7 +171,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     const found = listAutoBackups().find((backup) => backup.id === id);
     if (!found) throw new Error("자동 백업을 찾을 수 없습니다.");
     const payload = await readAutoBackupPayload(found);
-    const result = await ds.importBackupPayload(payload);
+    const result = await ds.restoreBackupPayload(payload);
     const [updatedNotes, updatedTherapists] = await Promise.all([
       ds.fetchNotes(),
       ds.fetchTherapists(),

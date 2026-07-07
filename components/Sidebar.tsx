@@ -3,10 +3,12 @@
 import { useMemo, useState, useRef } from "react";
 import { useNoteStore } from "@/store/useNoteStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles, Filter, RotateCcw, AlertTriangle, KeyRound } from "lucide-react";
+import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles, Filter, RotateCcw, AlertTriangle, KeyRound, TrendingUp, History } from "lucide-react";
 import LoginModal from "./LoginModal";
 import TherapistManagementModal, { type TherapistModalTab } from "./TherapistManagementModal";
 import MacroManagementModal from "./MacroManagementModal";
+import PatientTrendChart from "./PatientTrendChart";
+import BackupRestoreModal from "./BackupRestoreModal";
 import { getDeleteToolbarAction } from "@/lib/progressNoteUi";
 import {
   filterAndSortSidebarNotes,
@@ -46,6 +48,7 @@ export default function Sidebar() {
   const [showTherapistModal, setShowTherapistModal] = useState(false);
   const [therapistModalTab, setTherapistModalTab] = useState<TherapistModalTab>("register");
   const [showMacroModal, setShowMacroModal] = useState(false);
+  const [showBackupRestore, setShowBackupRestore] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterTherapistUid, setFilterTherapistUid] = useState("all");
@@ -56,6 +59,7 @@ export default function Sidebar() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showResignedFolder, setShowResignedFolder] = useState(false);
+  const [trendChartData, setTrendChartData] = useState<{ patientId?: string; patientName: string; chartNo: string } | null>(null);
 
   /* ── 삭제 2단계 비밀번호 확인 ── */
   const [showPwConfirm, setShowPwConfirm] = useState(false);
@@ -228,6 +232,9 @@ export default function Sidebar() {
                 <hr className="my-1 border-gray-100 dark:border-slate-800" />
                 <button onClick={() => { handleExportData(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-purple-300"><Download size={18} /> 데이터 내보내기</button>
                 <button onClick={() => { fileInputRef.current?.click(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-orange-300"><Upload size={18} /> 데이터 가져오기</button>
+                {isMaster && (
+                  <button onClick={() => { setShowBackupRestore(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300"><History size={18} /> 자동 백업 복원</button>
+                )}
               </div>
             </>
           )}
@@ -415,9 +422,25 @@ export default function Sidebar() {
                     <span className={`font-bold text-[15px] truncate block text-left ${selectedNoteId === note.id && !isDeleteMode ? "text-blue-800 dark:text-blue-200" : isDeleteMode && selectedIds.includes(note.id) ? "text-red-800 dark:text-red-200" : "text-gray-900 dark:text-slate-100"}`}>
                       {note.patientName || "(이름 없음)"}
                     </span>
-                    <span className="shrink-0 text-[11px] font-black text-gray-400 dark:text-slate-500">
-                      {formatDate(note.noteDate || note.savedAt)}
-                    </span>
+                    <div className="shrink-0 flex items-center gap-1">
+                      {!isDeleteMode && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setTrendChartData({ patientId: note.patientId, patientName: note.patientName, chartNo: note.chartNo });
+                          }}
+                          className="p-1.5 rounded-lg text-blue-400 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 dark:hover:text-blue-200 transition-colors"
+                          aria-label={`${note.patientName} 추이 보기`}
+                          title="이 환자의 치료 추이 그래프 보기"
+                        >
+                          <TrendingUp size={14} />
+                        </button>
+                      )}
+                      <span className="text-[11px] font-black text-gray-400 dark:text-slate-500">
+                        {formatDate(note.noteDate || note.savedAt)}
+                      </span>
+                    </div>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-bold text-gray-500 dark:text-slate-400">
                     <span className="truncate max-w-full">{note.chartNo || "차트번호 없음"}</span>
@@ -470,6 +493,15 @@ export default function Sidebar() {
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
       {showTherapistModal && <TherapistManagementModal onClose={() => setShowTherapistModal(false)} initialTab={therapistModalTab} />}
       {showMacroModal && <MacroManagementModal onClose={() => setShowMacroModal(false)} />}
+      {showBackupRestore && <BackupRestoreModal onClose={() => setShowBackupRestore(false)} />}
+      {trendChartData && (
+        <PatientTrendChart
+          patientId={trendChartData.patientId}
+          patientName={trendChartData.patientName}
+          chartNo={trendChartData.chartNo}
+          onClose={() => setTrendChartData(null)}
+        />
+      )}
       <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportData} className="hidden" />
 
       {/* ── 삭제 확인 모달 (1단계) ── */}
