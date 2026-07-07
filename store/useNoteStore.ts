@@ -1,13 +1,20 @@
 import { create } from "zustand";
 import type { NoteData } from "@/types";
-import * as ds from "@/lib/localDataService"; // 로컬 전환용
+import * as ds from "@/lib/localDataService";
 import { useAuthStore } from "./useAuthStore";
+import { guardImportedEntries } from "@/lib/importGuard";
 import {
   listAutoBackups,
   parsePlainBackupText,
   readAutoBackupPayload,
   type AutoBackupEntry,
 } from "@/lib/backupService";
+
+interface ImportResult {
+  notesCount: number;
+  therapistsCount: number;
+  skippedCount: number;
+}
 
 interface NoteStore {
   notes: NoteData[];
@@ -22,11 +29,17 @@ interface NoteStore {
   deleteNotes: (ids: string[]) => Promise<void>;
   transferNotes: (fromUid: string, toUid: string, toName: string, toLoginId: string | null) => Promise<void>;
   exportData: () => Promise<string>;
-  importData: (json: string) => Promise<{ notesCount: number; therapistsCount: number }>;
-  importBackupText: (text: string) => Promise<{ notesCount: number; therapistsCount: number }>;
+  importData: (json: string) => Promise<ImportResult>;
+  importBackupText: (text: string) => Promise<ImportResult>;
   getAutoBackups: () => AutoBackupEntry[];
   restoreAutoBackup: (id: string) => Promise<{ notesCount: number; therapistsCount: number }>;
   initSync: () => void;
+}
+
+function requireUsableImport(source: unknown, accepted: NoteData[]) {
+  if (Array.isArray(source) && source.length > 0 && accepted.length === 0) {
+    throw new Error("가져올 수 있는 정상 노트가 없습니다.");
+  }
 }
 
 export const useNoteStore = create<NoteStore>((set, get) => ({
@@ -39,7 +52,6 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
   createNewNote: () => set({ selectedNoteId: null }),
 
   initSync: () => {
-    // Auth 상태 리스너 등록 (cleanup은 앱 생명주기 동안 유지하므로 subscription 미보관)
     ds.onAuthStateChange(async (t) => {
       useAuthStore.getState().setTherapist(t);
       if (t) {
@@ -62,8 +74,6 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         useAuthStore.getState().setTherapists([]);
       }
     });
-
-    // Cleanup은 이 스토어 생명주기 동안 유지하므로 생략하거나 애플리케이션 종료시 처리
   },
 
   refreshNotes: async () => {
@@ -81,14 +91,13 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
       ? { ...data, id: existingId, savedAt: now }
       : { ...data, id: `note-${Date.now()}`, savedAt: now };
 
-    // Optimistic Update
     set((state) => {
       const updated = existingId
         ? state.notes.map((n) => (n.id === existingId ? noteToSave : n))
         : [noteToSave, ...state.notes];
-      return { 
+      return {
         notes: updated.sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime()),
-        selectedNoteId: noteToSave.id
+        selectedNoteId: noteToSave.id,
       };
     });
 
@@ -97,12 +106,11 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
       set((state) => ({
         notes: state.notes
           .map((n) => (n.id === saved.id ? saved : n))
-          .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime())
+          .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime()),
       }));
       return saved;
     } catch (err) {
-      // rollback
-      get().refreshNotes();
+      void get().refreshNotes();
       throw err;
     }
   },
@@ -110,13 +118,13 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
   deleteNotes: async (ids) => {
     set((state) => ({
       notes: state.notes.filter((n) => !ids.includes(n.id)),
-      selectedNoteId: state.selectedNoteId && ids.includes(state.selectedNoteId) ? null : state.selectedNoteId
+      selectedNoteId: state.selectedNoteId && ids.includes(state.selectedNoteId) ? null : state.selectedNoteId,
     }));
 
     try {
       await ds.deleteNotes(ids);
     } catch (err) {
-      get().refreshNotes();
+      void get().refreshNotes();
       throw err;
     }
   },
@@ -125,44 +133,41 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     await ds.transferNotesRpc(fromUid, toUid, toName, toLoginId);
     set((state) => ({
       notes: state.notes.map((n) => {
-        if (n.therapistUid === fromUid) {
-          return {
-            ...n,
-            therapistUid: toUid,
-            therapist: { uid: toUid, id: toLoginId, name: toName, role: "therapist" as const },
-          };
-        }
-        return n;
-      })
+        if (n.therapistUid !== fromUid) return n;
+        return {
+          ...n,
+          therapistUid: toUid,
+          therapist: { uid: toUid, id: toLoginId, name: toName, role: "therapist" as const },
+        };
+      }),
     }));
   },
 
-  exportData: async () => {
-    return ds.exportAllData();
-  },
+  exportData: async () => ds.exportAllData(),
 
   importData: async (json) => {
-    const data = JSON.parse(json);
-    if (!data.notes || !Array.isArray(data.notes)) throw new Error("잘못된 데이터 형식입니다.");
+    const data = JSON.parse(json) as { notes?: unknown };
+    const { accepted, rejected } = guardImportedEntries(data.notes);
+    requireUsableImport(data.notes, accepted);
 
-    const notesCount = await ds.importNotes(data.notes);
-    const updatedNotes = await ds.fetchNotes();
-    set({ notes: updatedNotes });
-
-    return { notesCount, therapistsCount: 0 };
+    const notesCount = await ds.importNotes(accepted);
+    set({ notes: await ds.fetchNotes() });
+    return { notesCount, therapistsCount: 0, skippedCount: rejected };
   },
 
   importBackupText: async (text) => {
     const payload = parsePlainBackupText(text);
+    const { accepted, rejected } = guardImportedEntries(payload.notes);
+    requireUsableImport(payload.notes, accepted);
 
-    const result = await ds.importBackupPayload(payload);
+    const result = await ds.importBackupPayload({ ...payload, notes: accepted });
     const [updatedNotes, updatedTherapists] = await Promise.all([
       ds.fetchNotes(),
       ds.fetchTherapists(),
     ]);
     set({ notes: updatedNotes });
     useAuthStore.getState().setTherapists(updatedTherapists);
-    return result;
+    return { ...result, skippedCount: rejected };
   },
 
   getAutoBackups: () => listAutoBackups(),
@@ -171,7 +176,9 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     const found = listAutoBackups().find((backup) => backup.id === id);
     if (!found) throw new Error("자동 백업을 찾을 수 없습니다.");
     const payload = await readAutoBackupPayload(found);
-    const result = await ds.importBackupPayload(payload);
+    const { accepted } = guardImportedEntries(payload.notes);
+    requireUsableImport(payload.notes, accepted);
+    const result = await ds.importBackupPayload({ ...payload, notes: accepted });
     const [updatedNotes, updatedTherapists] = await Promise.all([
       ds.fetchNotes(),
       ds.fetchTherapists(),
