@@ -5,6 +5,7 @@ import ProgressNoteForm from "@/components/ProgressNoteForm";
 import LoginModal from "@/components/LoginModal";
 import UpdateChecker from "@/components/UpdateChecker";
 import AutoLock from "@/components/AutoLock";
+import TrendPanel from "@/components/TrendPanel";
 import { useEffect, useState } from "react";
 import { Menu, Moon, Sun, X } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -61,6 +62,7 @@ function HomeContent() {
       </div>
 
       <div className="w-full flex-1 overflow-y-auto relative bg-white scroll-smooth dark:bg-slate-950"><ProgressNoteForm /></div>
+      <TrendPanel />
       <UpdateChecker />
       <AutoLock />
     </div>
