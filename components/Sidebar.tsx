@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef } from "react";
 import { useNoteStore } from "@/store/useNoteStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles, Filter, RotateCcw, AlertTriangle } from "lucide-react";
+import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles, Filter, RotateCcw, AlertTriangle, KeyRound } from "lucide-react";
 import LoginModal from "./LoginModal";
 import TherapistManagementModal, { type TherapistModalTab } from "./TherapistManagementModal";
 import MacroManagementModal from "./MacroManagementModal";
@@ -352,7 +352,7 @@ export default function Sidebar() {
             </div>
             <button onClick={handleLogout} className="text-xs text-red-500 hover:text-red-700 font-bold bg-white px-2.5 py-1.5 rounded-lg border border-red-100 shadow-sm transition-colors dark:bg-slate-900 dark:border-red-900/60 dark:text-red-300 dark:hover:text-red-200">로그아웃</button>
           </div>
-          {needsPasswordChange && (
+          {needsPasswordChange ? (
             <div className="mt-2 flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-2xl text-xs font-bold text-red-700 dark:bg-red-950/30 dark:border-red-900/60 dark:text-red-300">
               <AlertTriangle size={14} className="shrink-0" />
               <span className="flex-1">기본 비밀번호(0000) 사용 중 — 보안을 위해 변경하세요.</span>
@@ -364,6 +364,15 @@ export default function Sidebar() {
                 변경
               </button>
             </div>
+          ) : (
+            /* 배너가 없을 때도 언제든 비밀번호를 바꿀 수 있도록 상시 진입점 유지 */
+            <button
+              type="button"
+              onClick={() => { setTherapistModalTab("password"); setShowTherapistModal(true); }}
+              className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-gray-500 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl transition-colors dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <KeyRound size={14} /> 비밀번호 변경
+            </button>
           )}
         </div>
       )}
