@@ -13,55 +13,45 @@ import { useNoteStore } from "@/store/useNoteStore";
 import { useThemeStore } from "@/store/useThemeStore";
 
 function HomeContent() {
-  const therapist = useAuthStore((s) => s.therapist);
-  const isLoading = useAuthStore((s) => s.isLoading) || useNoteStore((s) => s.isLoading);
-  const initSync = useNoteStore((s) => s.initSync);
-  const selectedNoteId = useNoteStore((s) => s.selectedNoteId);
-  const initTheme = useThemeStore((s) => s.init);
-  const toggleTheme = useThemeStore((s) => s.toggleTheme);
-  const resolvedTheme = useThemeStore((s) => s.resolved);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const therapist = useAuthStore((state) => state.therapist);
+  const authLoading = useAuthStore((state) => state.isLoading);
+  const noteLoading = useNoteStore((state) => state.isLoading);
+  const initSync = useNoteStore((state) => state.initSync);
+  const selectedNoteId = useNoteStore((state) => state.selectedNoteId);
+  const initTheme = useThemeStore((state) => state.init);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
+  const resolvedTheme = useThemeStore((state) => state.resolved);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const loading = authLoading || noteLoading;
 
-  useEffect(() => initTheme(), [initTheme]);
-  useEffect(() => initSync(), [initSync]);
+  useEffect(() => { initTheme(); }, [initTheme]);
+  useEffect(() => { initSync(); }, [initSync]);
   useEffect(() => {
-    const timer = window.setTimeout(() => setMobileSidebarOpen(false), 0);
+    const timer = window.setTimeout(() => setMenuOpen(false), 0);
     return () => window.clearTimeout(timer);
   }, [selectedNoteId]);
   useEffect(() => {
-    if (!mobileSidebarOpen) return;
+    if (!menuOpen) return;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
-  }, [mobileSidebarOpen]);
+  }, [menuOpen]);
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-slate-950"><div className="text-center"><div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" /><p className="text-gray-500 dark:text-slate-400 font-bold">로딩 중...</p></div></div>;
-  }
-
-  if (!therapist) {
-    return <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-slate-950"><LoginModal onClose={() => {}} hideCancel /></div>;
-  }
+  if (loading) return <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-slate-950"><div className="text-center"><div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" /><p className="font-bold text-gray-500 dark:text-slate-400">Loading...</p></div></div>;
+  if (!therapist) return <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-slate-950"><LoginModal onClose={() => {}} hideCancel /></div>;
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 overflow-hidden font-sans">
-      <div className="lg:hidden flex items-center justify-between px-3 py-2 bg-white border-b border-gray-200 shadow-sm z-30 flex-shrink-0 dark:bg-slate-950 dark:border-slate-800">
-        <button onClick={() => setMobileSidebarOpen(true)} aria-label="메뉴 열기" className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors dark:hover:bg-slate-800 dark:active:bg-slate-700"><Menu size={24} className="text-gray-700 dark:text-slate-200" /></button>
-        <h1 className="font-extrabold text-gray-900 tracking-tight text-base dark:text-white">PT-NOTE</h1>
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-xs font-bold text-gray-500 truncate max-w-[90px] dark:text-slate-400">{therapist.name}</span>
-          <button type="button" onClick={toggleTheme} aria-label="테마 변경" className="p-2 rounded-lg text-gray-700 hover:bg-gray-100 active:bg-gray-200 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:active:bg-slate-700">{resolvedTheme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</button>
-        </div>
+    <div className="flex h-screen flex-col overflow-hidden bg-gray-50 font-sans text-gray-900 dark:bg-slate-950 dark:text-slate-100 lg:flex-row">
+      <div className="z-30 flex flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-3 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-950 lg:hidden">
+        <button onClick={() => setMenuOpen(true)} aria-label="Open menu" className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-slate-800"><Menu size={24} /></button>
+        <h1 className="text-base font-extrabold tracking-tight">PT-NOTE</h1>
+        <div className="flex min-w-0 items-center gap-1.5"><span className="max-w-[90px] truncate text-xs font-bold text-gray-500 dark:text-slate-400">{therapist.name}</span><button type="button" onClick={toggleTheme} aria-label="Toggle theme" className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-slate-800">{resolvedTheme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</button></div>
       </div>
 
-      <div className="hidden lg:flex w-[360px] xl:w-[400px] flex-shrink-0 flex-col h-full border-r border-gray-200 bg-white shadow-sm z-10 dark:bg-slate-950 dark:border-slate-800"><Sidebar /></div>
+      <div className="z-10 hidden h-full w-[360px] flex-shrink-0 flex-col border-r border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950 lg:flex xl:w-[400px]"><Sidebar /></div>
+      {menuOpen && <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setMenuOpen(false)} aria-hidden />}
+      <div className={`fixed inset-y-0 left-0 z-50 flex w-[85vw] max-w-sm flex-col bg-white shadow-2xl transition-transform duration-300 dark:bg-slate-950 lg:hidden ${menuOpen ? "translate-x-0" : "-translate-x-full"}`} role="dialog" aria-modal="true" aria-label="Mobile menu"><button onClick={() => setMenuOpen(false)} aria-label="Close menu" className="absolute right-2 top-2 z-10 rounded-full p-2 hover:bg-gray-100 dark:hover:bg-slate-800"><X size={22} /></button><div className="flex-1 overflow-hidden"><Sidebar /></div></div>
 
-      {mobileSidebarOpen && <div className="lg:hidden fixed inset-0 bg-black/40 z-40" onClick={() => setMobileSidebarOpen(false)} aria-hidden />}
-      <div className={`lg:hidden fixed inset-y-0 left-0 w-[85vw] max-w-sm bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-out dark:bg-slate-950 ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}`} role="dialog" aria-modal="true" aria-label="모바일 메뉴">
-        <button onClick={() => setMobileSidebarOpen(false)} aria-label="메뉴 닫기" className="absolute top-2 right-2 z-10 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800"><X size={22} /></button>
-        <div className="flex-1 overflow-hidden"><Sidebar /></div>
-      </div>
-
-      <div className="w-full flex-1 overflow-y-auto relative bg-white scroll-smooth dark:bg-slate-950"><ProgressNoteForm /></div>
+      <div className="relative w-full flex-1 overflow-y-auto bg-white scroll-smooth dark:bg-slate-950"><ProgressNoteForm /></div>
       <TrendPanel />
       <UpdateChecker />
       <AutoLock />
