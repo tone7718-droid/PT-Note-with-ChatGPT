@@ -185,6 +185,22 @@ describe("localDataService — export / import security", () => {
     const imported = (await ds.fetchTherapists()).find((t) => t.uid === "t-nohash")!;
     expect(await verifyPassword("0000", imported.passwordHash)).toBe(true);
   });
+
+  it("importNotes (레거시/호환 경로) sanitizes strings and drops malformed notes", async () => {
+    const clinical = "onset = 3일 전, pronation = 80도";
+    const count = await ds.importNotes([
+      sampleNote({ id: "leg-1", treatment: clinical, chiefComplaint: '<script>x</script><img onclick="a"> 주호소' }),
+      { id: "", savedAt: "2026-01-01" } as NoteData, // id 없음 → 제외
+      { patientName: "no-id" } as NoteData, // id/savedAt 없음 → 제외
+    ]);
+    expect(count).toBe(1);
+
+    const note = (await ds.fetchNotes()).find((n) => n.id === "leg-1")!;
+    expect(note.treatment).toBe(clinical); // 임상 문구 보존
+    expect(note.chiefComplaint).not.toContain("<script");
+    expect(note.chiefComplaint).not.toMatch(/onclick\s*=\s*["']/i);
+    expect(note.chiefComplaint).toContain("주호소");
+  });
 });
 
 describe("localDataService — decrypt failure safety", () => {

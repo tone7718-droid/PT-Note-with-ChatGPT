@@ -55,3 +55,9 @@ next-env.d.ts
 
 # 데스크톱 설치 파일은 GitHub Releases 로만 배포 (저장소에 커밋 금지)
 /release/
+
+# Supabase CLI 로컬 상태 (프로젝트 식별자 노출 방지)
+supabase/.temp/
+
+# 로컬 빌드 로그
+android/build_output.txt

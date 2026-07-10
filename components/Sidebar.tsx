@@ -24,6 +24,7 @@ export default function Sidebar() {
   const transferNotes = useNoteStore((s) => s.transferNotes);
   const exportData = useNoteStore((s) => s.exportData);
   const importData = useNoteStore((s) => s.importData);
+  const importBackupText = useNoteStore((s) => s.importBackupText);
   
   const therapist = useAuthStore((s) => s.therapist);
   const therapists = useAuthStore((s) => s.therapists);
@@ -88,12 +89,31 @@ export default function Sidebar() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (ev) => {
+      const text = ev.target?.result as string;
       try {
-        const result = await importData(ev.target?.result as string);
-        alert(`가져오기 완료: 노트 ${result.notesCount}건 추가됨`);
-      } catch {
-        alert("데이터 가져오기 실패: 올바른 JSON 파일인지 확인해주세요.");
+        // 표준 경로: 앱명/버전/구조 검증 + sanitize + 치료사 복원까지 수행하는
+        // backupService 파이프라인 (기존 importData 는 이 검증을 우회했음)
+        const result = await importBackupText(text);
+        const therapistMsg = result.therapistsCount > 0 ? `, 치료사 ${result.therapistsCount}명` : "";
+        alert(`가져오기 완료: 노트 ${result.notesCount}건${therapistMsg} 추가됨`);
+      } catch (err) {
+        // PT-NOTE 포맷이 아니어도 notes 배열이 있으면(형제 앱 백업 등)
+        // 노트만 가져오는 레거시 경로로 폴백 (importNotes 가 sanitize 수행)
+        const message = (err as Error)?.message ?? "";
+        if (message.includes("PT-NOTE 백업 파일이 아닙니다")) {
+          try {
+            const result = await importData(text);
+            alert(`가져오기 완료(호환 모드): 노트 ${result.notesCount}건 추가됨\n(치료사 계정은 PT-NOTE 백업에서만 복원됩니다)`);
+            return;
+          } catch {
+            /* 아래 공통 오류 처리 */
+          }
+        }
+        alert(message.includes("백업") ? `데이터 가져오기 실패: ${message}` : "데이터 가져오기 실패: 올바른 JSON 파일인지 확인해주세요.");
       }
+    };
+    reader.onerror = () => {
+      alert("파일을 읽지 못했습니다. 파일 상태를 확인한 뒤 다시 시도해주세요.");
     };
     reader.readAsText(file);
     e.target.value = "";

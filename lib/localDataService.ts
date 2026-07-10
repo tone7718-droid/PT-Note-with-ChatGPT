@@ -22,6 +22,7 @@ import { encryptData, decryptData } from "@/lib/cryptoService";
 import {
   createBackupPayload,
   saveAutoBackup,
+  sanitizeNote,
   validateBackupPayload,
   type BackupPayload,
 } from "@/lib/backupService";
@@ -366,7 +367,19 @@ export async function importNotes(notes: NoteData[]): Promise<number> {
   await createCurrentAutoBackup();
   const existing = await readNotes();
   const existingIds = new Set(existing.map((n) => n.id));
-  const newOnes = notes.filter((n) => !existingIds.has(n.id));
+  // 검증되지 않은 외부 파일 경로(레거시 importData 폴백)에서도 최소한의
+  // 구조 검증 + 문자열 sanitize 를 통과하도록 방어
+  const newOnes = notes
+    .filter(
+      (n) =>
+        !!n &&
+        typeof n === "object" &&
+        typeof n.id === "string" &&
+        n.id.length > 0 &&
+        typeof n.savedAt === "string" &&
+        !existingIds.has(n.id)
+    )
+    .map(sanitizeNote);
   if (newOnes.length === 0) return 0;
   await writeNotes([...newOnes, ...existing]);
   return newOnes.length;

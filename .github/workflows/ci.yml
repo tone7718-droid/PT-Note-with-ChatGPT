@@ -1,0 +1,24 @@
+name: CI
+
+# 푸시 / PR 마다 lint + 타입 검사 + Vitest + 정적 빌드 검증.
+# (PT-Progress-Note 의 ci.yml 이식 — 릴리스 빌드는 기존 desktop/android 워크플로가 담당)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run build

@@ -18,7 +18,7 @@ function sanitizeString(val: unknown): string {
     .slice(0, MAX_FIELD_LENGTH);
 }
 
-function sanitizeNote(note: NoteData): NoteData {
+export function sanitizeNote(note: NoteData): NoteData {
   return {
     ...note,
     patientName: sanitizeString(note.patientName),
