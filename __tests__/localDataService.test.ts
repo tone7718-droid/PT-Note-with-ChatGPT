@@ -203,6 +203,62 @@ describe("localDataService — export / import security", () => {
   });
 });
 
+describe("localDataService — 암호화 백업 (passphrase, 해시 유지)", () => {
+  it("encrypted backup keeps password hashes and restores working credentials", async () => {
+    await ds.signIn("master", "0000");
+    await ds.createTherapist("PT-001", "김치료", "Secret1!");
+    await ds.upsertNote(sampleNote({ id: "n1", patientName: "김환자" }));
+
+    const encText = await ds.exportAllDataEncrypted("backup-pass-123");
+    expect(ds.isEncryptedBackup(encText)).toBe(true);
+    expect(encText).not.toContain("김환자"); // 환자정보 평문 미노출
+    expect(encText).not.toContain("pbkdf2v1:"); // 해시도 평문 미노출
+
+    // 새 기기 시뮬레이션
+    window.localStorage.clear();
+    invalidateEncKeyCache();
+    await ds.signIn("master", "0000");
+
+    const plain = await ds.decryptBackupText(encText, "backup-pass-123");
+    const payload = JSON.parse(plain);
+    expect(payload.therapists.some((t: { passwordHash: string }) => t.passwordHash)).toBe(true); // 해시 유지
+    await ds.importBackupPayload(payload);
+
+    // 기존 비밀번호 그대로 로그인 가능 — "0000 초기화" 없이 복원됨
+    const relogin = await ds.signIn("PT-001", "Secret1!");
+    expect(relogin.therapist.id).toBe("PT-001");
+    expect((await ds.fetchNotes()).some((n) => n.patientName === "김환자")).toBe(true);
+  });
+
+  it("rejects a wrong passphrase", async () => {
+    await ds.signIn("master", "0000");
+    const encText = await ds.exportAllDataEncrypted("correct-pass-1");
+    await expect(ds.decryptBackupText(encText, "wrong-pass-99")).rejects.toThrow(/백업 암호/);
+  });
+});
+
+describe("localDataService — patientId", () => {
+  it("assigns a patientId on save and groups by chart number", async () => {
+    const a = await ds.upsertNote(sampleNote({ id: "a", chartNo: "C-100" }));
+    const b = await ds.upsertNote(sampleNote({ id: "b", chartNo: "C-100" }));
+    expect(a.patientId).toBeTruthy();
+    expect(b.patientId).toBe(a.patientId);
+  });
+
+  it("keeps the same patientId when re-saving without identifiers (no churn)", async () => {
+    const first = await ds.upsertNote(sampleNote({ id: "x", chartNo: "", birthDate: "", patientName: "" }));
+    const again = await ds.upsertNote(sampleNote({ id: "x", chartNo: "", birthDate: "", patientName: "" }));
+    expect(again.patientId).toBe(first.patientId);
+  });
+
+  it("remaps imported patientIds to the local patient (기기 간 재조정)", async () => {
+    const local = await ds.upsertNote(sampleNote({ id: "loc-1", chartNo: "C-7" }));
+    await ds.importNotes([sampleNote({ id: "imp-1", chartNo: "C-7", patientId: "foreign-pid" })]);
+    const imported = (await ds.fetchNotes()).find((n) => n.id === "imp-1")!;
+    expect(imported.patientId).toBe(local.patientId);
+  });
+});
+
 describe("localDataService — decrypt failure safety", () => {
   it("preserves the original ciphertext when the encryption key is lost", async () => {
     await ds.upsertNote(sampleNote({ id: "n1" }));

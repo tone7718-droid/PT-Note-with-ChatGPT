@@ -3,11 +3,13 @@
 import { useMemo, useState, useRef } from "react";
 import { useNoteStore } from "@/store/useNoteStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles, Filter, RotateCcw, AlertTriangle, KeyRound } from "lucide-react";
+import { Menu, Search, Plus, Trash2, UserPlus, LogIn, ChevronDown, ChevronRight, ArrowRightLeft, Shield, Download, Upload, Sparkles, Filter, RotateCcw, AlertTriangle, KeyRound, TrendingUp } from "lucide-react";
+import PatientTrendChart from "./PatientTrendChart";
 import LoginModal from "./LoginModal";
 import TherapistManagementModal, { type TherapistModalTab } from "./TherapistManagementModal";
 import MacroManagementModal from "./MacroManagementModal";
 import { getDeleteToolbarAction } from "@/lib/progressNoteUi";
+import { isEncryptedBackup } from "@/lib/localDataService";
 import {
   filterAndSortSidebarNotes,
   getVisibleSidebarNotes,
@@ -23,6 +25,8 @@ export default function Sidebar() {
   const deleteNotes = useNoteStore((s) => s.deleteNotes);
   const transferNotes = useNoteStore((s) => s.transferNotes);
   const exportData = useNoteStore((s) => s.exportData);
+  const exportDataEncrypted = useNoteStore((s) => s.exportDataEncrypted);
+  const importEncryptedBackupText = useNoteStore((s) => s.importEncryptedBackupText);
   const importData = useNoteStore((s) => s.importData);
   const importBackupText = useNoteStore((s) => s.importBackupText);
   
@@ -56,6 +60,7 @@ export default function Sidebar() {
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [trendChartData, setTrendChartData] = useState<{ patientId?: string; patientName: string; chartNo: string } | null>(null);
   const [showResignedFolder, setShowResignedFolder] = useState(false);
 
   /* ── 삭제 2단계 비밀번호 확인 ── */
@@ -69,18 +74,57 @@ export default function Sidebar() {
   /* ── 데이터 내보내기/가져오기 ── */
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleExportData = async () => {
+  /* ── 내보내기: 백업 암호 설정 모달 (암호화 기본, 평문은 명시적 선택) ── */
+  const MIN_BACKUP_PASSPHRASE = 8;
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [backupPassphrase, setBackupPassphrase] = useState("");
+  const [backupPassphrase2, setBackupPassphrase2] = useState("");
+  const [exportPlain, setExportPlain] = useState(false);
+  const [exportError, setExportError] = useState("");
+
+  /* ── 암호화 백업 가져오기: 백업 암호 입력 모달 ── */
+  const [pendingImportText, setPendingImportText] = useState<string | null>(null);
+  const [importPassphrase, setImportPassphrase] = useState("");
+  const [importPwError, setImportPwError] = useState("");
+
+  const downloadTextFile = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportConfirm = async () => {
+    if (!exportPlain) {
+      if (backupPassphrase.length < MIN_BACKUP_PASSPHRASE) {
+        setExportError(`백업 암호는 ${MIN_BACKUP_PASSPHRASE}자 이상이어야 합니다.`);
+        return;
+      }
+      if (backupPassphrase !== backupPassphrase2) {
+        setExportError("백업 암호가 서로 일치하지 않습니다.");
+        return;
+      }
+    }
+    setExportError("");
     try {
-      const json = await exportData();
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `pt-progress-notes-backup-${new Date().toISOString().split("T")[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const dateStr = new Date().toISOString().split("T")[0];
+      if (exportPlain) {
+        downloadTextFile(await exportData(), `pt-note-backup-${dateStr}.json`);
+      } else {
+        downloadTextFile(
+          await exportDataEncrypted(backupPassphrase),
+          `pt-note-backup-${dateStr}.encrypted.json`
+        );
+      }
+      setShowExportModal(false);
+      setBackupPassphrase("");
+      setBackupPassphrase2("");
+      setExportPlain(false);
     } catch {
-      alert("데이터 내보내기에 실패했습니다.");
+      setExportError("데이터 내보내기에 실패했습니다.");
     }
   };
 
@@ -90,6 +134,13 @@ export default function Sidebar() {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const text = ev.target?.result as string;
+      // 암호화 백업이면 암호 입력 모달로 넘긴다
+      if (isEncryptedBackup(text)) {
+        setPendingImportText(text);
+        setImportPassphrase("");
+        setImportPwError("");
+        return;
+      }
       try {
         // 표준 경로: 앱명/버전/구조 검증 + sanitize + 치료사 복원까지 수행하는
         // backupService 파이프라인 (기존 importData 는 이 검증을 우회했음)
@@ -117,6 +168,20 @@ export default function Sidebar() {
     };
     reader.readAsText(file);
     e.target.value = "";
+  };
+
+  const handleEncryptedImportConfirm = async () => {
+    if (!pendingImportText) return;
+    setImportPwError("");
+    try {
+      const result = await importEncryptedBackupText(pendingImportText, importPassphrase);
+      setPendingImportText(null);
+      setImportPassphrase("");
+      const therapistMsg = result.therapistsCount > 0 ? `, 치료사 ${result.therapistsCount}명` : "";
+      alert(`가져오기 완료: 노트 ${result.notesCount}건${therapistMsg} 추가됨\n(암호화 백업은 치료사 비밀번호까지 그대로 복원됩니다)`);
+    } catch (err) {
+      setImportPwError((err as Error)?.message ?? "가져오기에 실패했습니다.");
+    }
   };
 
   const handleLogout = async () => {
@@ -246,7 +311,7 @@ export default function Sidebar() {
                 <button onClick={() => { setTherapistModalTab("register"); setShowTherapistModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-green-300"><UserPlus size={18} /> 치료사 등록 / 관리</button>
                 <button onClick={() => { setShowMacroModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300"><Sparkles size={18} /> 매크로 관리 (/도수1~20)</button>
                 <hr className="my-1 border-gray-100 dark:border-slate-800" />
-                <button onClick={() => { handleExportData(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-purple-300"><Download size={18} /> 데이터 내보내기</button>
+                <button onClick={() => { setShowExportModal(true); setBackupPassphrase(""); setBackupPassphrase2(""); setExportPlain(false); setExportError(""); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-purple-300"><Download size={18} /> 데이터 내보내기</button>
                 <button onClick={() => { fileInputRef.current?.click(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-orange-300"><Upload size={18} /> 데이터 가져오기</button>
               </div>
             </>
@@ -435,6 +500,16 @@ export default function Sidebar() {
                     <span className={`font-bold text-[15px] truncate block text-left ${selectedNoteId === note.id && !isDeleteMode ? "text-blue-800 dark:text-blue-200" : isDeleteMode && selectedIds.includes(note.id) ? "text-red-800 dark:text-red-200" : "text-gray-900 dark:text-slate-100"}`}>
                       {note.patientName || "(이름 없음)"}
                     </span>
+                    {!isDeleteMode && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setTrendChartData({ patientId: note.patientId, patientName: note.patientName, chartNo: note.chartNo }); }}
+                        className="shrink-0 p-1 rounded-lg text-blue-400 hover:text-blue-700 hover:bg-blue-50 dark:hover:text-blue-300 dark:hover:bg-blue-950/40 transition-colors"
+                        aria-label={`${note.patientName} 추이 보기`}
+                        title="이 환자의 치료 추이 그래프 보기"
+                      >
+                        <TrendingUp size={14} />
+                      </button>
+                    )}
                     <span className="shrink-0 text-[11px] font-black text-gray-400 dark:text-slate-500">
                       {formatDate(note.noteDate || note.savedAt)}
                     </span>
@@ -493,6 +568,69 @@ export default function Sidebar() {
       <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportData} className="hidden" />
 
       {/* ── 삭제 확인 모달 (1단계) ── */}
+      {trendChartData && (
+        <PatientTrendChart
+          patientId={trendChartData.patientId}
+          patientName={trendChartData.patientName}
+          chartNo={trendChartData.chartNo}
+          onClose={() => setTrendChartData(null)}
+        />
+      )}
+
+      {/* ── 데이터 내보내기 — 백업 암호 설정 (암호화 기본) ── */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200 dark:bg-slate-900 dark:border dark:border-slate-700">
+            <h3 className="text-xl font-bold text-gray-900 mb-2 text-center dark:text-white">데이터 내보내기</h3>
+            <p className="text-gray-500 mb-4 font-medium text-sm text-center dark:text-slate-400">환자 정보 전체가 포함된 백업 파일입니다.</p>
+
+            {!exportPlain && (
+              <>
+                <label htmlFor="backup-passphrase" className="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1.5">백업 파일 암호 (복원 시 필요 — {MIN_BACKUP_PASSPHRASE}자 이상)</label>
+                <input id="backup-passphrase" type="password" value={backupPassphrase} onChange={(e) => { setBackupPassphrase(e.target.value); setExportError(""); }} placeholder="백업 파일을 잠글 암호"
+                  className="w-full p-3.5 border-2 border-gray-200 rounded-2xl focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 font-bold tracking-widest outline-none mb-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
+                <label htmlFor="backup-passphrase2" className="sr-only">백업 파일 암호 확인</label>
+                <input id="backup-passphrase2" type="password" value={backupPassphrase2} onChange={(e) => { setBackupPassphrase2(e.target.value); setExportError(""); }} placeholder="백업 암호 다시 입력"
+                  className="w-full p-3.5 border-2 border-gray-200 rounded-2xl focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 font-bold tracking-widest outline-none mb-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
+                <p className="flex items-start gap-1.5 text-[11px] text-gray-400 dark:text-slate-500 mb-3 leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5 text-amber-500" /> 이 암호를 잊으면 백업 파일을 복원할 수 없습니다. 안전한 곳에 따로 기록해두세요. 암호화 백업은 치료사 비밀번호까지 그대로 복원됩니다.</p>
+              </>
+            )}
+
+            <label className="flex items-start gap-2 mb-4 cursor-pointer select-none">
+              <input type="checkbox" checked={exportPlain} onChange={(e) => { setExportPlain(e.target.checked); setExportError(""); }} className="mt-0.5 w-4 h-4 rounded border-gray-300 dark:border-slate-600" />
+              <span className="text-xs font-bold text-gray-600 dark:text-slate-300">암호화 없이 내보내기 (권장하지 않음)</span>
+            </label>
+            {exportPlain && (
+              <p className="flex items-center justify-center gap-1.5 text-amber-600 dark:text-amber-400 mb-4 font-bold text-xs text-center bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2"><AlertTriangle size={14} className="shrink-0" /><span>환자정보가 평문 JSON 으로 저장되며,<br />복원 계정은 기본 비밀번호(0000)로 초기화됩니다.</span></p>
+            )}
+
+            {exportError && <p className="text-red-500 dark:text-red-400 text-sm font-bold text-center mb-3">{exportError}</p>}
+            <div className="flex gap-3">
+              <button onClick={() => { setShowExportModal(false); setBackupPassphrase(""); setBackupPassphrase2(""); setExportPlain(false); }} className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">취소</button>
+              <button onClick={handleExportConfirm} className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition-colors">내보내기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 암호화 백업 가져오기 — 백업 암호 입력 ── */}
+      {pendingImportText && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200 dark:bg-slate-900 dark:border dark:border-slate-700">
+            <h3 className="text-xl font-bold text-gray-900 mb-2 text-center dark:text-white">암호화된 백업 파일</h3>
+            <p className="text-gray-500 mb-6 font-medium text-sm text-center dark:text-slate-400">이 백업은 암호로 보호되어 있습니다.<br />내보낼 때 설정한 백업 암호를 입력해주세요.</p>
+            <label htmlFor="import-passphrase" className="sr-only">백업 암호 입력</label>
+            <input id="import-passphrase" type="password" value={importPassphrase} onChange={(e) => { setImportPassphrase(e.target.value); setImportPwError(""); }} placeholder="백업 암호 입력"
+              className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-center font-bold tracking-widest outline-none mb-3 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" autoFocus />
+            {importPwError && <p className="text-red-500 dark:text-red-400 text-sm font-bold text-center mb-3">{importPwError}</p>}
+            <div className="flex gap-3">
+              <button onClick={() => { setPendingImportText(null); setImportPassphrase(""); }} className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">취소</button>
+              <button onClick={handleEncryptedImportConfirm} className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition-colors">가져오기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDeleteModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 print:hidden">
           <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200 dark:bg-slate-900 dark:border dark:border-slate-700">

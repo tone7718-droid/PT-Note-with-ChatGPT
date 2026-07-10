@@ -198,6 +198,9 @@ export default function ProgressNoteForm() {
     try {
       const saved = await saveNote(formData, currentNoteId);
       setCurrentNoteId(saved.id);
+      // 저장 시 부여된 patientId 를 폼에 되써준다 — 차트번호·생년월일이 없는
+      // 노트가 재저장마다 새 환자로 갈라지는 것(churn) 방지
+      methods.setValue("patientId", saved.patientId);
       setShowSaved(true);
       // 정상 저장 → 임시 저장 정리
       clearDraft();

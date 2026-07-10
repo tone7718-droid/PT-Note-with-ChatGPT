@@ -18,7 +18,13 @@
 
 import type { NoteData, TherapistRecord, Therapist } from "@/types";
 import { hashPassword, verifyPassword, isLegacyHash } from "@/lib/hashUtils";
-import { encryptData, decryptData } from "@/lib/cryptoService";
+import {
+  encryptData,
+  decryptData,
+  encryptWithPassphrase,
+  decryptWithPassphrase,
+  type PassphraseEncrypted,
+} from "@/lib/cryptoService";
 import {
   createBackupPayload,
   saveAutoBackup,
@@ -213,21 +219,98 @@ function sanitizePainAreas(note: NoteData): NoteData {
   return note;
 }
 
+/* ══════════════════════════════════════════
+   환자 식별자 (patientId) — PT-Progress-Note 에서 이식
+   ══════════════════════════════════════════
+   동명이인 구분을 위해 노트마다 내부 환자 ID를 부여한다.
+   매칭 규칙: 차트번호 → 이름+생년월일 → (백필 한정, 완전 무식별 레코드만) 이름 단독 */
+
+/** pool 에서 동일 환자로 볼 수 있는 patientId 를 찾는다. 없으면 null. */
+function findMatchingPatientId(note: NoteData, pool: NoteData[]): string | null {
+  const chartNo = note.chartNo?.trim();
+  if (chartNo) {
+    const match = pool.find((n) => n.patientId && n.chartNo?.trim() === chartNo);
+    if (match?.patientId) return match.patientId;
+  }
+
+  const name = note.patientName?.trim();
+  const birth = note.birthDate?.trim();
+  if (name && birth) {
+    const match = pool.find(
+      (n) => n.patientId && n.patientName?.trim() === name && n.birthDate?.trim() === birth
+    );
+    if (match?.patientId) return match.patientId;
+  }
+
+  return null;
+}
+
+function resolvePatientId(
+  note: NoteData,
+  pool: NoteData[],
+  options: { allowNameOnly?: boolean } = {}
+): string {
+  if (note.patientId) return note.patientId;
+
+  const matched = findMatchingPatientId(note, pool);
+  if (matched) return matched;
+
+  // 동명이인 오병합 방지: 양쪽 모두 차트번호·생년월일이 전혀 없는
+  // 완전히 구분 불가능한 레코드끼리만 이름 단독으로 묶는다
+  const name = note.patientName?.trim();
+  const birth = note.birthDate?.trim();
+  const chartNo = note.chartNo?.trim();
+  if (options.allowNameOnly && name && !birth && !chartNo) {
+    const match = pool.find(
+      (n) =>
+        n.patientId &&
+        n.patientName?.trim() === name &&
+        !n.birthDate?.trim() &&
+        !n.chartNo?.trim()
+    );
+    if (match?.patientId) return match.patientId;
+  }
+
+  return `patient-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** patientId 가 없는 기존 노트에 백필. 모든 노트에 있으면 no-op (idempotent). */
+async function ensurePatientIds(notes: NoteData[]): Promise<NoteData[]> {
+  if (notes.length === 0 || notes.every((n) => n.patientId)) return notes;
+
+  const ordered = [...notes].sort(
+    (a, b) => new Date(a.savedAt || 0).getTime() - new Date(b.savedAt || 0).getTime()
+  );
+  for (const note of ordered) {
+    if (!note.patientId) {
+      note.patientId = resolvePatientId(note, ordered, { allowNameOnly: true });
+    }
+  }
+  await writeNotes(notes);
+  return notes;
+}
+
 export async function fetchNotes(): Promise<NoteData[]> {
-  return (await readNotes())
+  const notes = await ensurePatientIds(await readNotes());
+  return notes
     .map(sanitizePainAreas)
     .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
 }
 
 export async function upsertNote(note: NoteData): Promise<NoteData> {
   const session = read<Therapist | null>(SESSION_KEY, null);
+  const notes = await ensurePatientIds(await readNotes());
   const enriched: NoteData = {
     ...note,
+    // 같은 id 의 기존 노트가 있으면 그 patientId 를 재사용 (재저장 churn 방지)
+    patientId:
+      note.patientId ||
+      notes.find((n) => n.id === note.id)?.patientId ||
+      resolvePatientId(note, notes),
     therapist: note.therapist ?? session ?? undefined,
     therapistUid: note.therapistUid || session?.uid || "",
   };
 
-  const notes = await readNotes();
   const idx = notes.findIndex((n) => n.id === enriched.id);
   if (idx >= 0) notes[idx] = enriched;
   else notes.unshift(enriched);
@@ -362,6 +445,56 @@ export async function exportAllData(): Promise<string> {
   return JSON.stringify(sanitized, null, 2);
 }
 
+/* ── passphrase 암호화 백업 ── */
+
+const ENCRYPTED_BACKUP_FORMAT = "ptnote-encrypted-v1";
+
+interface EncryptedBackupEnvelope extends PassphraseEncrypted {
+  app: string;
+  format: typeof ENCRYPTED_BACKUP_FORMAT;
+  exportedAt: string;
+}
+
+/**
+ * 내보내기(암호화): 백업 페이로드 전체를 passphrase 파생 키로 AES-GCM 암호화.
+ * 파일 자체가 잠기므로 비밀번호 해시를 **유지**한다 — 새 기기에서 복원하면
+ * 치료사들이 기존 비밀번호 그대로 로그인 가능 (평문 백업의 "0000 초기화" 불필요).
+ */
+export async function exportAllDataEncrypted(passphrase: string): Promise<string> {
+  const payload = await buildBackupPayload("manual"); // 해시 포함
+  const encrypted = await encryptWithPassphrase(JSON.stringify(payload), passphrase);
+  const envelope: EncryptedBackupEnvelope = {
+    app: "PT-NOTE",
+    format: ENCRYPTED_BACKUP_FORMAT,
+    exportedAt: new Date().toISOString(),
+    ...encrypted,
+  };
+  return JSON.stringify(envelope, null, 2);
+}
+
+/** 파일 내용이 암호화 백업(passphrase 필요)인지 판별 */
+export function isEncryptedBackup(text: string): boolean {
+  try {
+    const parsed = JSON.parse(text);
+    return !!parsed && parsed.format === ENCRYPTED_BACKUP_FORMAT;
+  } catch {
+    return false;
+  }
+}
+
+/** 암호화 백업을 평문 백업 JSON 문자열로 복호화. passphrase 불일치 시 throw. */
+export async function decryptBackupText(text: string, passphrase: string): Promise<string> {
+  const envelope = JSON.parse(text) as EncryptedBackupEnvelope;
+  if (envelope.format !== ENCRYPTED_BACKUP_FORMAT) {
+    throw new Error("암호화 백업 형식이 아닙니다.");
+  }
+  try {
+    return await decryptWithPassphrase(envelope, passphrase);
+  } catch {
+    throw new Error("백업 암호가 올바르지 않습니다.");
+  }
+}
+
 export async function importNotes(notes: NoteData[]): Promise<number> {
   if (notes.length === 0) return 0;
   await createCurrentAutoBackup();
@@ -381,8 +514,34 @@ export async function importNotes(notes: NoteData[]): Promise<number> {
     )
     .map(sanitizeNote);
   if (newOnes.length === 0) return 0;
+  reconcileImportedPatientIds(newOnes, existing);
   await writeNotes([...newOnes, ...existing]);
   return newOnes.length;
+}
+
+/**
+ * 가져온 노트의 patientId 를 이 기기 기준으로 재조정한다.
+ * - 다른 기기에서 발급된 patientId 는 로컬의 동일 환자(차트번호/이름+생년월일
+ *   매칭)로 재매핑 (같은 수입 patientId 를 공유하던 노트의 그룹은 유지)
+ * - patientId 가 없는 노트는 백필
+ */
+function reconcileImportedPatientIds(newOnes: NoteData[], existing: NoteData[]): void {
+  const pidRemap = new Map<string, string>();
+  for (const n of newOnes) {
+    if (!n.patientId) continue;
+    if (!pidRemap.has(n.patientId)) {
+      const local = findMatchingPatientId(n, existing);
+      pidRemap.set(n.patientId, local ?? n.patientId);
+    }
+    n.patientId = pidRemap.get(n.patientId);
+  }
+
+  const pool = [...existing, ...newOnes];
+  for (const n of newOnes) {
+    if (!n.patientId) {
+      n.patientId = resolvePatientId(n, pool, { allowNameOnly: true });
+    }
+  }
 }
 
 export async function buildBackupPayload(
@@ -419,6 +578,7 @@ export async function importBackupPayload(payload: BackupPayload): Promise<{
   const therapistUids = new Set(existingTherapists.map((t) => t.uid));
 
   const importedNotes = payload.notes.filter((n) => !noteIds.has(n.id));
+  reconcileImportedPatientIds(importedNotes, existingNotes);
 
   // 내보내기 파일에는 보안상 비밀번호 해시가 없음 → 기본 비밀번호("0000")로
   // 초기화해서 가져오고, 해당 계정은 로그인 후 비밀번호를 변경하도록 안내

@@ -24,6 +24,11 @@ interface NoteStore {
   exportData: () => Promise<string>;
   importData: (json: string) => Promise<{ notesCount: number; therapistsCount: number }>;
   importBackupText: (text: string) => Promise<{ notesCount: number; therapistsCount: number }>;
+  importEncryptedBackupText: (
+    text: string,
+    passphrase: string
+  ) => Promise<{ notesCount: number; therapistsCount: number }>;
+  exportDataEncrypted: (passphrase: string) => Promise<string>;
   getAutoBackups: () => AutoBackupEntry[];
   restoreAutoBackup: (id: string) => Promise<{ notesCount: number; therapistsCount: number }>;
   initSync: () => void;
@@ -139,6 +144,16 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
 
   exportData: async () => {
     return ds.exportAllData();
+  },
+
+  exportDataEncrypted: async (passphrase) => {
+    return ds.exportAllDataEncrypted(passphrase);
+  },
+
+  importEncryptedBackupText: async (text, passphrase) => {
+    // 복호화하면 해시 포함 표준 백업 JSON — 기존 검증 경로 재사용
+    const plain = await ds.decryptBackupText(text, passphrase);
+    return get().importBackupText(plain);
   },
 
   importData: async (json) => {

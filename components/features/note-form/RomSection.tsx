@@ -130,6 +130,9 @@ export function RomSection({ isGeneratingPdf }: { isGeneratingPdf: boolean }) {
             const normalRange = getNormalRange(currentVal.joint);
             const showDropdown = activeId === field.id && suggestions.length > 0 && !isGeneratingPdf;
             const isSelected = !!normalRange;
+            // ROM DB 에 없는 커스텀 관절도 측정값을 기록할 수 있어야 한다
+            // (정상 범위만 "직접 입력" 안내로 대체)
+            const hasJoint = !!currentVal.joint?.trim();
 
             return (
               <div
@@ -237,20 +240,20 @@ export function RomSection({ isGeneratingPdf }: { isGeneratingPdf: boolean }) {
                           max={360}
                           className={cn(
                             "pr-6 sm:pr-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-center font-bold !text-base sm:!text-xl",
-                            isSelected && !isGeneratingPdf ? "text-blue-700 bg-white ring-2 ring-blue-100 placeholder-blue-200 dark:bg-slate-900 dark:text-blue-100 dark:ring-blue-500/20 dark:placeholder-blue-900" : !isGeneratingPdf ? "bg-gray-100 text-gray-400 placeholder-gray-300 dark:bg-slate-800 dark:text-slate-400 dark:placeholder-slate-600" : ""
+                            hasJoint && !isGeneratingPdf ? "text-blue-700 bg-white ring-2 ring-blue-100 placeholder-blue-200 dark:bg-slate-900 dark:text-blue-100 dark:ring-blue-500/20 dark:placeholder-blue-900" : !isGeneratingPdf ? "bg-gray-100 text-gray-400 placeholder-gray-300 dark:bg-slate-800 dark:text-slate-400 dark:placeholder-slate-600" : ""
                           )}
                           placeholder="0"
-                          disabled={!isSelected}
+                          disabled={!hasJoint}
                         />
                       )}
                     />
-                    <span className={`absolute right-2.5 sm:right-4 top-1/2 -translate-y-1/2 font-bold pointer-events-none select-none text-base sm:text-lg ${isSelected ? 'text-blue-400' : 'text-gray-300 dark:text-slate-600'}`}>
+                    <span className={`absolute right-2.5 sm:right-4 top-1/2 -translate-y-1/2 font-bold pointer-events-none select-none text-base sm:text-lg ${hasJoint ? 'text-blue-400' : 'text-gray-300 dark:text-slate-600'}`}>
                       °
                     </span>
                   </div>
 
                   <span className={`flex-1 text-xs sm:text-base font-bold whitespace-nowrap overflow-hidden text-ellipsis px-1 sm:px-2 ${isSelected ? "text-slate-600 dark:text-slate-300" : "text-gray-300 italic dark:text-slate-600"}`}>
-                    {isSelected ? `/ 정상 : ${normalRange}` : "관절 선택 시 표시"}
+                    {isSelected ? `/ 정상 : ${normalRange}` : hasJoint ? "/ 정상 범위 정보 없음" : "관절 입력 시 활성화"}
                   </span>
                 </div>
 

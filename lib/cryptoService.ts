@@ -110,3 +110,80 @@ export async function decryptData(encrypted: string): Promise<string> {
 export function invalidateEncKeyCache(): void {
   _cachedKey = null;
 }
+
+/* ── passphrase 기반 암복호화 (백업 파일용) ──
+ *
+ * 위 로컬 키(pt_enc_key_v1)와 달리 기기 밖으로 나가는 백업 파일을 보호한다.
+ * 사용자가 입력한 passphrase 에서 PBKDF2 로 AES-GCM 키를 파생 —
+ * 키가 파일이나 localStorage 어디에도 저장되지 않으므로, passphrase 를
+ * 모르면 백업 파일만으로는 복호화할 수 없다.
+ */
+
+const PASSPHRASE_KDF_ITERATIONS = 200_000;
+
+export interface PassphraseEncrypted {
+  kdf: { algo: "PBKDF2-SHA256"; iterations: number; salt: string }; // salt: hex
+  iv: string;   // hex (12 bytes)
+  data: string; // hex ciphertext
+}
+
+async function derivePassphraseKey(
+  passphrase: string,
+  salt: Uint8Array<ArrayBuffer>,
+  iterations: number,
+  usage: KeyUsage
+): Promise<CryptoKey> {
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(passphrase),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    [usage]
+  );
+}
+
+export async function encryptWithPassphrase(
+  plaintext: string,
+  passphrase: string
+): Promise<PassphraseEncrypted> {
+  const salt = new Uint8Array(16);
+  crypto.getRandomValues(salt);
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);
+  const key = await derivePassphraseKey(passphrase, salt, PASSPHRASE_KDF_ITERATIONS, "encrypt");
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    new TextEncoder().encode(plaintext)
+  );
+  return {
+    kdf: { algo: "PBKDF2-SHA256", iterations: PASSPHRASE_KDF_ITERATIONS, salt: bufToHex(salt) },
+    iv: bufToHex(iv),
+    data: bufToHex(new Uint8Array(ciphertext)),
+  };
+}
+
+export async function decryptWithPassphrase(
+  payload: PassphraseEncrypted,
+  passphrase: string
+): Promise<string> {
+  const key = await derivePassphraseKey(
+    passphrase,
+    hexToBuf(payload.kdf.salt),
+    payload.kdf.iterations,
+    "decrypt"
+  );
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: hexToBuf(payload.iv) },
+    key,
+    hexToBuf(payload.data)
+  );
+  return new TextDecoder().decode(plaintext);
+}
