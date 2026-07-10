@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "PT-NOTE",
-  "version": "0.1.6",
-  "identifier": "com.ptclinic.progressnote",
+  "version": "0.1.7",
+  "identifier": "com.ptclinic.ptnote3",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",

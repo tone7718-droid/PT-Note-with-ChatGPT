@@ -1,10 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
+    // namespace 는 소스 패키지(com.ptprogressnote.app)와 일치해야 하므로 유지.
+    // 배포 식별자(applicationId)만 Tauri 데스크톱과 동일하게 통일.
     namespace = "com.ptprogressnote.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.ptprogressnote.app"
+        applicationId "com.ptclinic.ptnote3"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
