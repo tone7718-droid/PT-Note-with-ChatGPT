@@ -4,11 +4,13 @@
  *
  * 저장 위치: localStorage["pt_draft_note"]
  * 저장 데이터: NoteData (id, savedAt 제외) + draftSavedAt 타임스탬프
+ *              — 환자정보가 포함되므로 노트 본문과 동일하게 AES-GCM 암호화 저장.
  *
  * 정상 저장 (저장 버튼) 시 → clearDraft() 호출하여 자동 정리됨.
  */
 
 import type { NoteData } from "@/types";
+import { encryptData, decryptData } from "@/lib/cryptoService";
 
 const DRAFT_KEY = "pt_draft_note";
 
@@ -16,12 +18,18 @@ export type DraftNoteData = Omit<NoteData, "id" | "savedAt"> & {
   draftSavedAt: string;
 };
 
-export function loadDraft(): DraftNoteData | null {
+export async function loadDraft(): Promise<DraftNoteData | null> {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
+    let json: string;
+    try {
+      json = await decryptData(raw);
+    } catch {
+      json = raw; // 암호화 전 평문 draft 폴백 (다음 saveDraft 때 암호화됨)
+    }
+    const parsed = JSON.parse(json);
     if (!parsed || typeof parsed !== "object") return null;
     return parsed as DraftNoteData;
   } catch {
@@ -29,11 +37,11 @@ export function loadDraft(): DraftNoteData | null {
   }
 }
 
-export function saveDraft(data: Omit<NoteData, "id" | "savedAt">): void {
+export async function saveDraft(data: Omit<NoteData, "id" | "savedAt">): Promise<void> {
   if (typeof window === "undefined") return;
   try {
     const draft: DraftNoteData = { ...data, draftSavedAt: new Date().toISOString() };
-    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    window.localStorage.setItem(DRAFT_KEY, await encryptData(JSON.stringify(draft)));
   } catch {
     // localStorage 쿼터 초과 등 — 조용히 실패
   }

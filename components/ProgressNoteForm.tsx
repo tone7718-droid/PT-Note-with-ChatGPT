@@ -10,6 +10,7 @@ import html2canvas from "html2canvas-pro";
 import { Save, X as XIcon, Clock, Copy } from "lucide-react";
 import { loadDraft, saveDraft, clearDraft, isNoteContentful, formatRelativeTime, type DraftNoteData } from "@/lib/draftNote";
 import { formatLastDraftSaveLabel, getPdfPageSlices } from "@/lib/progressNoteUi";
+import { todayLocalISO } from "@/lib/localDate";
 
 import { PatientInfoSection } from "./features/note-form/PatientInfoSection";
 import { ComplaintSection } from "./features/note-form/ComplaintSection";
@@ -92,19 +93,24 @@ export default function ProgressNoteForm() {
         return;
       }
       // [일반 새 노트 모드]
-      reset({ ...EMPTY_NOTE, noteDate: new Date().toISOString().split("T")[0], rom: [{ joint: "", measuredROM: "", normalRange: "" }] });
+      reset({ ...EMPTY_NOTE, noteDate: todayLocalISO(), rom: [{ joint: "", measuredROM: "", normalRange: "" }] });
       setCurrentNoteId(null);
       setSavedTherapist(null);
-      // 임시 저장된 draft 가 있으면 복구 배너 표시
-      const d = loadDraft();
-      if (d && isNoteContentful(d)) {
-        setPendingDraft(d);
-        setLastDraftSavedAt(new Date(d.draftSavedAt));
-      } else {
-        setPendingDraft(null);
-        setLastDraftSavedAt(null);
-      }
-      return;
+      // 임시 저장된 draft 가 있으면 복구 배너 표시 (복호화가 비동기라 로드 완료 후 반영)
+      let cancelled = false;
+      void loadDraft().then((d) => {
+        if (cancelled) return;
+        if (d && isNoteContentful(d)) {
+          setPendingDraft(d);
+          setLastDraftSavedAt(new Date(d.draftSavedAt));
+        } else {
+          setPendingDraft(null);
+          setLastDraftSavedAt(null);
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
     }
     // 기존 노트 편집 모드 → draft 배너 숨김
     setPendingDraft(null);
@@ -130,10 +136,11 @@ export default function ProgressNoteForm() {
       const data = methods.getValues();
       if (!isNoteContentful(data)) return;
       const savedAt = new Date();
-      saveDraft(data);
-      setLastDraftSavedAt(savedAt);
-      setAutoSaveFlash(true);
-      window.setTimeout(() => setAutoSaveFlash(false), 1200);
+      void saveDraft(data).then(() => {
+        setLastDraftSavedAt(savedAt);
+        setAutoSaveFlash(true);
+        window.setTimeout(() => setAutoSaveFlash(false), 1200);
+      });
     }, 5000);
     return () => window.clearInterval(interval);
   }, [currentNoteId, methods]);
@@ -160,7 +167,7 @@ export default function ProgressNoteForm() {
       ...current,
       id: "",
       savedAt: "",
-      noteDate: new Date().toISOString().split("T")[0],
+      noteDate: todayLocalISO(),
       therapist: therapist || null,
       therapistUid: therapist?.uid || "",
     };
@@ -182,7 +189,7 @@ export default function ProgressNoteForm() {
     }
     setValidationErrors([]);
 
-    const effectiveNoteDate = data.noteDate || new Date().toISOString().split("T")[0];
+    const effectiveNoteDate = data.noteDate || todayLocalISO();
     data.noteDate = effectiveNoteDate;
     
     // rom 빈 값 제거

@@ -10,6 +10,7 @@ import TherapistManagementModal, { type TherapistModalTab } from "./TherapistMan
 import MacroManagementModal from "./MacroManagementModal";
 import { getDeleteToolbarAction } from "@/lib/progressNoteUi";
 import { isEncryptedBackup } from "@/lib/localDataService";
+import { todayLocalISO } from "@/lib/localDate";
 import {
   filterAndSortSidebarNotes,
   getVisibleSidebarNotes,
@@ -110,7 +111,7 @@ export default function Sidebar() {
     }
     setExportError("");
     try {
-      const dateStr = new Date().toISOString().split("T")[0];
+      const dateStr = todayLocalISO();
       if (exportPlain) {
         downloadTextFile(await exportData(), `pt-note-backup-${dateStr}.json`);
       } else {
