@@ -18,6 +18,8 @@ interface AuthStore {
   resignTherapist: (uid: string) => Promise<void>;
   deleteTherapist: (uid: string) => Promise<void>;
   updateTherapistPassword: (newPassword: string) => Promise<void>;
+  /** master 전용 — 백업 복원으로 잠긴(비밀번호 미설정) 계정 활성화 포함 */
+  resetTherapistPassword: (uid: string, newPassword: string) => Promise<void>;
   setError: (err: string | null) => void;
   setLoading: (isLoading: boolean) => void;
 }
@@ -82,5 +84,11 @@ export const useAuthStore = create<AuthStore>((set) => ({
   updateTherapistPassword: async (newPassword) => {
     await ds.updateTherapistPassword(newPassword);
     set({ needsPasswordChange: false });
+  },
+
+  resetTherapistPassword: async (uid, newPassword) => {
+    await ds.resetTherapistPasswordDb(uid, newPassword);
+    const fetched = await ds.fetchTherapists();
+    set({ therapists: fetched });
   },
 }));

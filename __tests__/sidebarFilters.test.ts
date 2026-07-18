@@ -80,14 +80,14 @@ describe("sidebar filters", () => {
     expect(filterAndSortSidebarNotes(notes, { sortBy: "patientName" }).map((n) => n.id)).toEqual(["a", "b"]);
   });
 
-  it("keeps master resigned notes hidden from the main list", () => {
+  it("master sees all notes including resigned therapists' records", () => {
     const result = getVisibleSidebarNotes({
       notes: [note({ id: "active", therapistUid: "t1" }), note({ id: "resigned", therapistUid: "t2" })],
       therapists: [therapistRecord({ uid: "t1" }), therapistRecord({ uid: "t2", resigned: true })],
       therapist: therapist({ role: "master" }),
     });
 
-    expect(result.map((n) => n.id)).toEqual(["active"]);
+    expect(result.map((n) => n.id)).toEqual(["active", "resigned"]);
   });
 
   it("detects whether any optional filters are active", () => {

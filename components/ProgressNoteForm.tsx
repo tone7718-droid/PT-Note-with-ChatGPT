@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { useNoteStore } from "@/store/useNoteStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -118,7 +118,9 @@ export default function ProgressNoteForm() {
     const note = notesRef.current.find((n) => n.id === selectedNoteId);
     if (note) {
       const roms = note.rom && note.rom.length > 0 ? note.rom : [{ joint: "", measuredROM: "", normalRange: "" }];
-      reset({ ...note, rom: roms });
+      // EMPTY_NOTE 스프레드 — 구버전 노트에 없는 신규 필드(assessment 등)를
+      // 기본값으로 채워 controlled input 경고를 방지
+      reset({ ...EMPTY_NOTE, ...note, rom: roms });
       setCurrentNoteId(note.id ?? null);
       setSavedTherapist(note.therapist ?? null);
     }
@@ -297,6 +299,20 @@ export default function ProgressNoteForm() {
 
   const displayTherapist = currentNoteId ? savedTherapist : therapist;
 
+  /* 회차 표시 — 같은 환자(patientId)의 노트를 시술일 순으로 세어 몇 번째
+     기록인지 보여준다 (기존 노트 편집 모드에서만) */
+  const sessionInfo = useMemo(() => {
+    if (!currentNoteId) return null;
+    const cur = notes.find((n) => n.id === currentNoteId);
+    if (!cur?.patientId) return null;
+    const timeOf = (n: NoteData) => new Date(n.noteDate || n.savedAt || 0).getTime();
+    const series = notes
+      .filter((n) => n.patientId === cur.patientId)
+      .sort((a, b) => timeOf(a) - timeOf(b) || new Date(a.savedAt || 0).getTime() - new Date(b.savedAt || 0).getTime());
+    const idx = series.findIndex((n) => n.id === currentNoteId);
+    return idx >= 0 ? { seq: idx + 1, total: series.length } : null;
+  }, [notes, currentNoteId]);
+
   return (
     <FormProvider {...methods}>
       <form onSubmit={handleSubmit(onSaveSubmit, onInvalid)}>
@@ -407,6 +423,9 @@ export default function ProgressNoteForm() {
                       <span className="hidden sm:inline">기존 노트 수정 중:</span>
                       <span className="sm:hidden">수정 중:</span>
                       <span className="font-bold truncate max-w-[80px] sm:max-w-none">{patientName || "(이름 없음)"}</span>
+                      {sessionInfo && (
+                        <span className="font-bold whitespace-nowrap">· {sessionInfo.seq}회차/{sessionInfo.total}회</span>
+                      )}
                     </span>
                   </div>
                 ) : (

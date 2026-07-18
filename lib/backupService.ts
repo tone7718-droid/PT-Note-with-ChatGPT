@@ -32,7 +32,9 @@ export function sanitizeNote(note: NoteData): NoteData {
     palpation: sanitizeString(note.palpation),
     specialTest: sanitizeString(note.specialTest),
     treatment: sanitizeString(note.treatment),
+    assessment: sanitizeString(note.assessment),
     homeExercise: sanitizeString(note.homeExercise),
+    plan: sanitizeString(note.plan),
     noteDate: sanitizeString(note.noteDate),
   };
 }

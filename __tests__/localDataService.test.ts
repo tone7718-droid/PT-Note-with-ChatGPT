@@ -168,7 +168,7 @@ describe("localDataService — export / import security", () => {
     expect(parsed.therapists[0].passwordHash).toBe("");
   });
 
-  it("importBackupPayload resets hash-less therapists to the default password", async () => {
+  it("importBackupPayload restores hash-less therapists as login-locked (no default password)", async () => {
     await ds.signIn("master", "0000");
     const payload = await ds.buildBackupPayload("manual");
     payload.therapists.push({
@@ -182,8 +182,11 @@ describe("localDataService — export / import security", () => {
 
     await ds.importBackupPayload(payload);
 
+    // 유출된 백업 파일만으로 "0000" 로그인이 되면 안 됨 — 잠금 상태로 복원
     const imported = (await ds.fetchTherapists()).find((t) => t.uid === "t-nohash")!;
-    expect(await verifyPassword("0000", imported.passwordHash)).toBe(true);
+    expect(imported.passwordHash).toBe("");
+    expect(await verifyPassword("0000", imported.passwordHash)).toBe(false);
+    await expect(ds.signIn("PT-009", "0000")).rejects.toThrow("비밀번호가 설정되지 않은 계정");
   });
 
   it("importNotes (레거시/호환 경로) sanitizes strings and drops malformed notes", async () => {

@@ -48,6 +48,9 @@ export async function hashPassword(plain: string): Promise<string> {
 }
 
 export async function verifyPassword(plain: string, stored: string): Promise<boolean> {
+  // 빈 해시 = 비밀번호 미설정 계정 (백업 복원 등) — 항상 로그인 거부
+  if (!stored) return false;
+
   if (stored.startsWith(`${V2_PREFIX}:`)) {
     const parts = stored.split(":");
     if (parts.length !== 3) return false;

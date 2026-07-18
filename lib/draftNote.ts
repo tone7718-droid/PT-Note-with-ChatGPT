@@ -69,8 +69,11 @@ export function isNoteContentful(data: Partial<Omit<NoteData, "id" | "savedAt">>
   if (data.palpation?.trim()) return true;
   if (data.specialTest?.trim()) return true;
   if (data.treatment?.trim()) return true;
+  if (data.assessment?.trim()) return true;
   if (data.homeExercise?.trim()) return true;
+  if (data.plan?.trim()) return true;
   if (typeof data.painScore === "number") return true;
+  if (typeof data.painScoreAfter === "number") return true;
   if (Array.isArray(data.painAreas) && data.painAreas.length > 0) return true;
   if (Array.isArray(data.rom) && data.rom.some((r) => r.joint?.trim() || r.measuredROM?.trim())) return true;
   return false;

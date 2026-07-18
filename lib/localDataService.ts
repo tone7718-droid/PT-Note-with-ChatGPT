@@ -140,6 +140,9 @@ export async function signIn(
 
   if (!found) throw new Error("ID 또는 비밀번호를 확인해주세요.");
   if (found.resigned) throw new Error("퇴사 처리된 계정입니다.");
+  if (!found.passwordHash) {
+    throw new Error("비밀번호가 설정되지 않은 계정입니다. 마스터에게 비밀번호 재설정을 요청하세요.");
+  }
 
   const valid = await verifyPassword(password, found.passwordHash);
   if (!valid) throw new Error("ID 또는 비밀번호를 확인해주세요.");
@@ -311,6 +314,11 @@ export async function upsertNote(note: NoteData): Promise<NoteData> {
     therapistUid: note.therapistUid || session?.uid || "",
   };
 
+  // 기존 노트 덮어쓰기 전 자동 백업 — 의무기록 수정 이력 보존 (실수로 덮어쓴 내용 복원 가능)
+  if (notes.some((n) => n.id === enriched.id)) {
+    await createCurrentAutoBackup();
+  }
+
   const idx = notes.findIndex((n) => n.id === enriched.id);
   if (idx >= 0) notes[idx] = enriched;
   else notes.unshift(enriched);
@@ -424,6 +432,31 @@ export async function updateTherapistPassword(
   write(
     THERAPISTS_KEY,
     therapists.map((t) => (t.uid === session.uid ? { ...t, passwordHash } : t))
+  );
+}
+
+/**
+ * master 가 다른 치료사의 비밀번호를 재설정.
+ * 백업에서 복원된 "비밀번호 미설정(로그인 잠금)" 계정을 활성화하는 유일한 경로.
+ */
+export async function resetTherapistPasswordDb(
+  uid: string,
+  newPassword: string
+): Promise<void> {
+  const session = read<Therapist | null>(SESSION_KEY, null);
+  if (!session || session.role !== "master") {
+    throw new Error("마스터 계정만 비밀번호를 재설정할 수 있습니다.");
+  }
+
+  const therapists = read<TherapistRecord[]>(THERAPISTS_KEY, []);
+  const target = therapists.find((t) => t.uid === uid);
+  if (!target) throw new Error("해당 치료사를 찾을 수 없습니다.");
+  if (target.resigned) throw new Error("퇴사 처리된 계정은 재설정할 수 없습니다.");
+
+  const passwordHash = await hashPassword(newPassword);
+  write(
+    THERAPISTS_KEY,
+    therapists.map((t) => (t.uid === uid ? { ...t, passwordHash } : t))
   );
 }
 
@@ -580,12 +613,14 @@ export async function importBackupPayload(payload: BackupPayload): Promise<{
   const importedNotes = payload.notes.filter((n) => !noteIds.has(n.id));
   reconcileImportedPatientIds(importedNotes, existingNotes);
 
-  // 내보내기 파일에는 보안상 비밀번호 해시가 없음 → 기본 비밀번호("0000")로
-  // 초기화해서 가져오고, 해당 계정은 로그인 후 비밀번호를 변경하도록 안내
-  const defaultPwHash = await hashPassword(DEFAULT_MASTER_PW);
+  // 내보내기(평문) 파일에는 보안상 비밀번호 해시가 없음 → 해시 없이
+  // "로그인 잠금" 상태로 복원하고, master 가 [비밀번호 재설정]으로 활성화한다.
+  // (기본 비밀번호 "0000" 초기화 방식은 유출된 백업 파일만으로 타인이
+  // 로그인할 수 있어 폐기 — 자매 앱들과 동일 정책)
+  // 암호화 백업은 해시를 유지하므로 기존 비밀번호 그대로 로그인 가능.
   const importedTherapists = payload.therapists
     .filter((t) => !therapistUids.has(t.uid))
-    .map((t) => (t.passwordHash ? t : { ...t, passwordHash: defaultPwHash }));
+    .map((t) => (t.passwordHash ? t : { ...t, passwordHash: "" }));
 
   if (importedNotes.length > 0) {
     await writeNotes([...importedNotes, ...existingNotes]);
