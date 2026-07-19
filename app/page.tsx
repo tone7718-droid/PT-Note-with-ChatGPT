@@ -97,7 +97,8 @@ function HomeContent() {
 
       {/* ── Sidebar ── */}
       {/* 데스크톱: 항상 좌측에 정적으로 표시 */}
-      <div className="hidden lg:flex w-[360px] xl:w-[400px] flex-shrink-0 flex-col h-full border-r border-gray-200 bg-white shadow-sm z-10 dark:bg-slate-950 dark:border-slate-800">
+      {/* 사이드바 바탕에 옅은 세이지 틴트 — 목록↔문서 영역이 색으로 자연히 구분됨 (시안 B) */}
+      <div className="hidden lg:flex w-[360px] xl:w-[400px] flex-shrink-0 flex-col h-full border-r border-gray-200 bg-gray-100 shadow-sm z-10 dark:bg-slate-900 dark:border-slate-800">
         <Sidebar />
       </div>
 
@@ -114,7 +115,7 @@ function HomeContent() {
 
         {/* Drawer */}
         <div
-          className={`lg:hidden fixed inset-y-0 left-0 w-[85vw] max-w-sm bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-out dark:bg-slate-950 ${
+          className={`lg:hidden fixed inset-y-0 left-0 w-[85vw] max-w-sm bg-gray-100 shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-out dark:bg-slate-900 ${
             mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           role="dialog"

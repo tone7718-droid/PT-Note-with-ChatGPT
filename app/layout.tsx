@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+// Pretendard 가변 폰트 (한글) — dynamic subset 을 번들에 포함해 셀프호스팅.
+// 기존 Geist(latin 전용)만 로드하던 구성에서는 한글이 시스템 폰트로 폴백됐음.
+import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,8 +17,8 @@ const geistMono = Geist_Mono({
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#2563eb" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+    { media: "(prefers-color-scheme: light)", color: "#0f766e" },
+    { media: "(prefers-color-scheme: dark)", color: "#101915" },
   ],
   width: "device-width",
   initialScale: 1,
