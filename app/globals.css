@@ -62,6 +62,13 @@
   --color-slate-800: #1c2b25;
   --color-slate-900: #17231e;
   --color-slate-950: #101915;
+
+  /* 라운드 확대: 입력칸(rounded-2xl)·토글/버튼(rounded-xl/lg)을
+     한 단계 더 둥글게 — 타원에 가까운 부드러운 인상 (세이지 케어 무드) */
+  --radius-lg: 0.65rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.4rem;
+  --radius-3xl: 1.85rem;
 }
 
 body {
