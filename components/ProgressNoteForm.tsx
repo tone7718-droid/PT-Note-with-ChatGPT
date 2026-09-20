@@ -157,7 +157,7 @@ export default function ProgressNoteForm() {
       setShowSaved(true);
       // 정상 저장 → 임시 저장 정리
       await markEditorSaved();
-      useNoteStore.getState().selectNote(saved.id);
+      await useNoteStore.getState().selectNote(saved.id);
       setSaveError("");
       setTimeout(() => setShowSaved(false), 3000);
     } catch (err) {
