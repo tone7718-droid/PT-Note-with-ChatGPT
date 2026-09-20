@@ -150,7 +150,7 @@ export async function readAutoBackupPayload(entry: AutoBackupEntry): Promise<Bac
     validateBackupPayload(parsed);
     return parsed;
   }
-  if (entry.payload) return entry.payload;
+  if (entry.payload) { validateBackupPayload(entry.payload); return entry.payload; }
   throw new Error("자동 백업 데이터가 손상되었습니다.");
 }
 
@@ -171,19 +171,12 @@ function readAutoBackups(): AutoBackupEntry[] {
     const raw = window.localStorage.getItem(AUTO_BACKUPS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((entry): entry is AutoBackupEntry => {
-        return (
-          !!entry &&
-          typeof entry.id === "string" &&
-          typeof entry.createdAt === "string" &&
-          (!!entry.payloadEnc || !!entry.payload)
-        );
-      })
+    if (!Array.isArray(parsed)) throw new Error("백업 형식 오류");
+    if (parsed.some((entry: AutoBackupEntry) => !entry || typeof entry.id !== "string" || typeof entry.createdAt !== "string" || (!entry.payloadEnc && !entry.payload))) throw new Error("백업 항목 오류");
+    return (parsed as AutoBackupEntry[])
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   } catch {
-    return [];
+    throw new Error("자동 백업을 읽을 수 없습니다. 원본을 보존하고 작업을 중단했습니다.");
   }
 }
 
@@ -200,5 +193,5 @@ function writeAutoBackups(backups: AutoBackupEntry[]) {
       toWrite = toWrite.slice(0, toWrite.length - 1);
     }
   }
-  console.warn("[backupService] 저장 공간 부족으로 자동 백업을 저장하지 못했습니다.");
+  throw new Error("자동 백업 저장에 실패하여 작업을 중단했습니다. 저장 공간을 확인해주세요.");
 }

@@ -1,3 +1,4 @@
+import { withBrowserLock } from "@/lib/storageLock";
 /**
  * 자동 임시 저장 (Draft) — 새 노트 작성 중에 5초마다 호출됨.
  * 사용자가 실수로 [취소] / [새 노트 작성] 을 눌러도 마지막 5초 이내 작업 복구 가능.
@@ -39,21 +40,17 @@ export async function loadDraft(): Promise<DraftNoteData | null> {
 
 export async function saveDraft(data: Omit<NoteData, "id" | "savedAt">): Promise<void> {
   if (typeof window === "undefined") return;
-  try {
+  return withBrowserLock("pt-note:draft:v1", async () => {
     const draft: DraftNoteData = { ...data, draftSavedAt: new Date().toISOString() };
     window.localStorage.setItem(DRAFT_KEY, await encryptData(JSON.stringify(draft)));
-  } catch {
-    // localStorage 쿼터 초과 등 — 조용히 실패
-  }
+  });
 }
 
-export function clearDraft(): void {
+export async function clearDraft(): Promise<void> {
   if (typeof window === "undefined") return;
-  try {
+  return withBrowserLock("pt-note:draft:v1", async () => {
     window.localStorage.removeItem(DRAFT_KEY);
-  } catch {
-    // ignore
-  }
+  });
 }
 
 /** 폼이 "비어있지 않은지" 검사 (의미있는 내용이 있는지) */

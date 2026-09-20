@@ -153,7 +153,7 @@ describe("localDataService — notes CRUD", () => {
 
     const result = await ds.importBackupPayload(payload);
 
-    expect(result).toEqual({ notesCount: 1, therapistsCount: 1 });
+    expect(result).toEqual({ notesCount: 1, therapistsCount: 1, skippedCount: 0, duplicateCount: 1 });
     expect((await ds.fetchNotes()).map((n) => n.id).sort()).toEqual(["existing", "imported"]);
     expect((await ds.fetchTherapists()).some((t) => t.uid === "t1")).toBe(true);
   });
@@ -271,13 +271,9 @@ describe("localDataService — decrypt failure safety", () => {
     window.localStorage.setItem("pt_enc_key_v1", "00".repeat(32));
     invalidateEncKeyCache();
 
-    expect(await ds.fetchNotes()).toEqual([]); // 복호화 불가
-    // 원본 암호문이 복구 슬롯에 보존되어야 함
-    expect(window.localStorage.getItem("pt_local_notes_recovery_v1")).toBe(original);
-
-    // 이후 저장이 일어나도 보존본은 유지
-    await ds.upsertNote(sampleNote({ id: "n2" }));
-    expect(window.localStorage.getItem("pt_local_notes_recovery_v1")).toBe(original);
+    await expect(ds.fetchNotes()).rejects.toThrow();
+    await expect(ds.upsertNote(sampleNote({ id: "n2" }))).rejects.toThrow();
+    expect(window.localStorage.getItem("pt_local_notes")).toBe(original);
   });
 });
 

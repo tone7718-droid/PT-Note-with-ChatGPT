@@ -1,3 +1,4 @@
+import { withBrowserLock } from "@/lib/storageLock";
 /* ── AES-GCM localStorage 암호화 서비스 ──
  *
  * 랜덤 256-bit 키를 최초 실행 시 생성해 별도 localStorage 슬롯에 보관.
@@ -13,6 +14,7 @@ const ENC_KEY_STORAGE = "pt_enc_key_v1";
 const V2_PREFIX = "v2:";
 
 let _cachedKey: CryptoKey | null = null;
+let _cachedHex: string | null = null;
 
 function bufToHex(buf: Uint8Array<ArrayBuffer>): string {
   return Array.from(buf)
@@ -46,31 +48,24 @@ function b64ToBuf(b64: string): Uint8Array<ArrayBuffer> {
 }
 
 async function getKey(): Promise<CryptoKey> {
-  if (_cachedKey) return _cachedKey;
-  if (typeof window === "undefined") throw new Error("browser-only");
-
-  const stored = window.localStorage.getItem(ENC_KEY_STORAGE);
-  if (stored) {
-    _cachedKey = await crypto.subtle.importKey(
-      "raw",
-      hexToBuf(stored),
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["encrypt", "decrypt"]
-    );
-    return _cachedKey;
-  }
-
-  _cachedKey = await crypto.subtle.generateKey(
-    { name: "AES-GCM", length: 256 },
-    true,
-    ["encrypt", "decrypt"]
-  );
-  const exported = await crypto.subtle.exportKey("raw", _cachedKey);
-  window.localStorage.setItem(ENC_KEY_STORAGE, bufToHex(new Uint8Array(exported)));
-  return _cachedKey;
+  return withBrowserLock("pt-note:key:v1", async () => {
+    const stored = window.localStorage.getItem(ENC_KEY_STORAGE);
+    if (stored) {
+      if (!/^[0-9a-f]{64}$/i.test(stored)) throw new Error("암호화 키가 손상되었습니다.");
+      if (_cachedKey && _cachedHex === stored) return _cachedKey;
+      const key = await crypto.subtle.importKey("raw", hexToBuf(stored), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+      _cachedKey = key; _cachedHex = stored; return key;
+    }
+    for (const name of ["pt_local_notes", "pt_draft_note", "pt_auto_backup_v1", "pt_auto_backups"]) {
+      const raw = window.localStorage.getItem(name);
+      if (raw && (!/^[\s]*[\[{]/.test(raw) || raw.includes('"payloadEnc"'))) throw new Error("암호화 키가 없습니다. 기존 기록을 보존하기 위해 저장을 중단했습니다.");
+    }
+    const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+    const hex = bufToHex(new Uint8Array(await crypto.subtle.exportKey("raw", key)));
+    window.localStorage.setItem(ENC_KEY_STORAGE, hex);
+    _cachedKey = key; _cachedHex = hex; return key;
+  });
 }
-
 export async function encryptData(plaintext: string): Promise<string> {
   const key = await getKey();
   const iv = new Uint8Array(12);
@@ -109,6 +104,7 @@ export async function decryptData(encrypted: string): Promise<string> {
 /** 테스트/초기화 시 캐시 무효화 */
 export function invalidateEncKeyCache(): void {
   _cachedKey = null;
+  _cachedHex = null;
 }
 
 /* ── passphrase 기반 암복호화 (백업 파일용) ──
@@ -174,6 +170,7 @@ export async function decryptWithPassphrase(
   payload: PassphraseEncrypted,
   passphrase: string
 ): Promise<string> {
+  if (!payload?.kdf || payload.kdf.algo !== "PBKDF2-SHA256" || !Number.isInteger(payload.kdf.iterations) || payload.kdf.iterations < 100_000 || payload.kdf.iterations > 1_000_000 || !/^[0-9a-f]{32}$/i.test(payload.kdf.salt) || !/^[0-9a-f]{24}$/i.test(payload.iv) || typeof payload.data !== "string" || payload.data.length < 32 || payload.data.length % 2 || !/^[0-9a-f]+$/i.test(payload.data)) throw new Error("암호화 백업 형식이 올바르지 않습니다.");
   const key = await derivePassphraseKey(
     passphrase,
     hexToBuf(payload.kdf.salt),

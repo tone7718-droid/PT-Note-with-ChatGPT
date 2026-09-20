@@ -1,4 +1,6 @@
 "use client";
+import { describeImport } from "@/lib/backupExchange";
+import BackupRestoreModal from "./BackupRestoreModal";
 
 import { useMemo, useState, useRef } from "react";
 import { useNoteStore } from "@/store/useNoteStore";
@@ -28,7 +30,6 @@ export default function Sidebar() {
   const exportData = useNoteStore((s) => s.exportData);
   const exportDataEncrypted = useNoteStore((s) => s.exportDataEncrypted);
   const importEncryptedBackupText = useNoteStore((s) => s.importEncryptedBackupText);
-  const importData = useNoteStore((s) => s.importData);
   const importBackupText = useNoteStore((s) => s.importBackupText);
   
   const therapist = useAuthStore((s) => s.therapist);
@@ -51,6 +52,7 @@ export default function Sidebar() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showTherapistModal, setShowTherapistModal] = useState(false);
   const [therapistModalTab, setTherapistModalTab] = useState<TherapistModalTab>("register");
+  const [showBackupRestore, setShowBackupRestore] = useState(false);
   const [showMacroModal, setShowMacroModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -143,25 +145,9 @@ export default function Sidebar() {
         return;
       }
       try {
-        // 표준 경로: 앱명/버전/구조 검증 + sanitize + 치료사 복원까지 수행하는
-        // backupService 파이프라인 (기존 importData 는 이 검증을 우회했음)
-        const result = await importBackupText(text);
-        const therapistMsg = result.therapistsCount > 0 ? `, 치료사 ${result.therapistsCount}명` : "";
-        alert(`가져오기 완료: 노트 ${result.notesCount}건${therapistMsg} 추가됨`);
+        alert(describeImport(await importBackupText(text)));
       } catch (err) {
-        // PT-NOTE 포맷이 아니어도 notes 배열이 있으면(형제 앱 백업 등)
-        // 노트만 가져오는 레거시 경로로 폴백 (importNotes 가 sanitize 수행)
-        const message = (err as Error)?.message ?? "";
-        if (message.includes("PT-NOTE 백업 파일이 아닙니다")) {
-          try {
-            const result = await importData(text);
-            alert(`가져오기 완료(호환 모드): 노트 ${result.notesCount}건 추가됨\n(치료사 계정은 PT-NOTE 백업에서만 복원됩니다)`);
-            return;
-          } catch {
-            /* 아래 공통 오류 처리 */
-          }
-        }
-        alert(message.includes("백업") ? `데이터 가져오기 실패: ${message}` : "데이터 가져오기 실패: 올바른 JSON 파일인지 확인해주세요.");
+        alert(`데이터 가져오기 실패: ${(err as Error).message}`);
       }
     };
     reader.onerror = () => {
@@ -178,8 +164,7 @@ export default function Sidebar() {
       const result = await importEncryptedBackupText(pendingImportText, importPassphrase);
       setPendingImportText(null);
       setImportPassphrase("");
-      const therapistMsg = result.therapistsCount > 0 ? `, 치료사 ${result.therapistsCount}명` : "";
-      alert(`가져오기 완료: 노트 ${result.notesCount}건${therapistMsg} 추가됨\n(암호화 백업은 치료사 비밀번호까지 그대로 복원됩니다)`);
+      alert(describeImport(result));
     } catch (err) {
       setImportPwError((err as Error)?.message ?? "가져오기에 실패했습니다.");
     }
@@ -312,6 +297,7 @@ export default function Sidebar() {
                 <button onClick={() => { setTherapistModalTab("register"); setShowTherapistModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-green-300"><UserPlus size={18} /> 치료사 등록 / 관리</button>
                 <button onClick={() => { setShowMacroModal(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-300"><Sparkles size={18} /> 매크로 관리 (/도수1~20)</button>
                 <hr className="my-1 border-gray-100 dark:border-slate-800" />
+                <button onClick={() => { setShowBackupRestore(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-slate-800"><RotateCcw size={18} /> 자동 백업 복원</button>
                 <button onClick={() => { setShowExportModal(true); setBackupPassphrase(""); setBackupPassphrase2(""); setExportPlain(false); setExportError(""); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-purple-300"><Download size={18} /> 데이터 내보내기</button>
                 <button onClick={() => { fileInputRef.current?.click(); setShowDropdown(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-orange-300"><Upload size={18} /> 데이터 가져오기</button>
               </div>
@@ -565,6 +551,7 @@ export default function Sidebar() {
 
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
       {showTherapistModal && <TherapistManagementModal onClose={() => setShowTherapistModal(false)} initialTab={therapistModalTab} />}
+      {showBackupRestore && <BackupRestoreModal onClose={() => setShowBackupRestore(false)} />}
       {showMacroModal && <MacroManagementModal onClose={() => setShowMacroModal(false)} />}
       <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportData} className="hidden" />
 
@@ -593,7 +580,7 @@ export default function Sidebar() {
                 <label htmlFor="backup-passphrase2" className="sr-only">백업 파일 암호 확인</label>
                 <input id="backup-passphrase2" type="password" value={backupPassphrase2} onChange={(e) => { setBackupPassphrase2(e.target.value); setExportError(""); }} placeholder="백업 암호 다시 입력"
                   className="w-full p-3.5 border-2 border-gray-200 rounded-2xl focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 font-bold tracking-widest outline-none mb-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
-                <p className="flex items-start gap-1.5 text-[11px] text-gray-400 dark:text-slate-500 mb-3 leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5 text-amber-500" /> 이 암호를 잊으면 백업 파일을 복원할 수 없습니다. 안전한 곳에 따로 기록해두세요. 암호화 백업은 치료사 비밀번호까지 그대로 복원됩니다.</p>
+                <p className="flex items-start gap-1.5 text-[11px] text-gray-400 dark:text-slate-500 mb-3 leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5 text-amber-500" /> 이 암호를 잊으면 백업 파일을 복원할 수 없습니다. 안전한 곳에 따로 기록해두세요. 기존 비밀번호 포함 여부는 백업을 만든 앱과 형식에 따라 다릅니다.</p>
               </>
             )}
 
@@ -602,7 +589,7 @@ export default function Sidebar() {
               <span className="text-xs font-bold text-gray-600 dark:text-slate-300">암호화 없이 내보내기 (권장하지 않음)</span>
             </label>
             {exportPlain && (
-              <p className="flex items-center justify-center gap-1.5 text-amber-600 dark:text-amber-400 mb-4 font-bold text-xs text-center bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2"><AlertTriangle size={14} className="shrink-0" /><span>환자정보가 평문 JSON 으로 저장되며,<br />복원 계정은 기본 비밀번호(0000)로 초기화됩니다.</span></p>
+              <p className="flex items-center justify-center gap-1.5 text-amber-600 dark:text-amber-400 mb-4 font-bold text-xs text-center bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2"><AlertTriangle size={14} className="shrink-0" /><span>환자정보가 평문 JSON 으로 저장되며,<br />가져온 계정은 관리자가 비밀번호를 재설정해야 합니다.</span></p>
             )}
 
             {exportError && <p className="text-red-500 dark:text-red-400 text-sm font-bold text-center mb-3">{exportError}</p>}

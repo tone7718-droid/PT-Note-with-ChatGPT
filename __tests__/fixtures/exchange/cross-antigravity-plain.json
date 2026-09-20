@@ -1,0 +1,56 @@
+{
+  "app": "PT-NOTE",
+  "reason": "manual",
+  "version": 3,
+  "exportedAt": "2026-09-20T05:03:15.406Z",
+  "notes": [
+    {
+      "patientName": "교차 검증",
+      "chartNo": "cross-chart",
+      "birthDate": "",
+      "gender": "",
+      "diagnosis": "",
+      "pmh": "",
+      "painScore": 4,
+      "painAreas": [],
+      "chiefComplaint": "",
+      "rom": [],
+      "postural": "",
+      "palpation": "",
+      "specialTest": "",
+      "treatment": "교환 내용",
+      "painScoreAfter": null,
+      "assessment": "",
+      "homeExercise": "",
+      "plan": "",
+      "noteDate": "",
+      "therapist": {
+        "uid": "master-default",
+        "id": "master",
+        "name": "마스터",
+        "role": "master",
+        "usingDefaultPassword": true
+      },
+      "therapistUid": "master-default",
+      "id": "cross-note",
+      "patientId": "cross-patient",
+      "savedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "therapists": [
+    {
+      "uid": "master-default",
+      "id": "master",
+      "name": "마스터",
+      "role": "master",
+      "resigned": false
+    },
+    {
+      "uid": "therapist-f0fe2ee5-eb1e-4d80-9bd2-ec6d50cb1b67",
+      "id": "PT-007",
+      "name": "교차 검증",
+      "role": "therapist",
+      "resigned": false
+    }
+  ]
+}
