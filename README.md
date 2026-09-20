@@ -1,5 +1,7 @@
 # PT-NOTE
 
+> 저장 정책·접근 권한·배포 식별자 변경: [현재 동작과 업그레이드 안내](docs/upgrades-5-9.md). 신규·기존 기록은 5초마다 임시 초안에 저장하며 기록 반영은 저장 버튼으로 수행합니다. 처음 설치하면 관리자 비밀번호를 직접 설정합니다.
+
 > **Proprietary software for physical therapy progress notes.**
 > **All rights reserved. No reuse permitted without explicit written permission.**
 > See [LICENSE](./LICENSE) for full terms.

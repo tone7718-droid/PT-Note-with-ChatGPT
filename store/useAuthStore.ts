@@ -1,3 +1,5 @@
+import { useNoteStore } from "./useNoteStore";
+import { flushEditor } from "@/lib/editorDraft";
 import { create } from "zustand";
 import type { Therapist, TherapistRecord } from "@/types";
 import * as ds from "@/lib/localDataService"; // 로컬 전환용. 나중에 dataService로 바꿀 수 있음.
@@ -52,7 +54,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   signOut: async () => {
+    try { await flushEditor(); } catch (err) { alert(`임시 저장 실패: ${(err as Error).message}. 마지막 임시 저장 이후 내용은 보존되지 않았을 수 있습니다.`); }
     await ds.signOut();
+    useNoteStore.setState({ notes: [], selectedNoteId: null });
     set({ therapist: null, therapists: [], needsPasswordChange: false });
   },
 

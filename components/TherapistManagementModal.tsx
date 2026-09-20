@@ -5,8 +5,8 @@ import { useAuthStore } from "@/store/useAuthStore";
 import type { TherapistRecord } from "@/types";
 import { X, Users, Trash2, AlertCircle, ShieldCheck, KeyRound } from "lucide-react";
 
-const PASSWORD_PATTERN = /^[A-Za-z0-9!@#$%^&*_-]{4,20}$/;
-const PASSWORD_RULE_MSG = "비밀번호는 4~20자의 영문/숫자/특수문자(!@#$%^&*_-)여야 합니다.";
+const PASSWORD_PATTERN = /^[A-Za-z0-9!@#$%^&*_-]{8,20}$/;
+const PASSWORD_RULE_MSG = "비밀번호는 8~20자의 영문/숫자/특수문자(!@#$%^&*_-)여야 합니다.";
 
 export type TherapistModalTab = "register" | "list" | "password";
 
@@ -216,7 +216,7 @@ export default function TherapistManagementModal({ onClose, initialTab }: Therap
                   </div>
                   <div>
                     <label htmlFor="reg-pw" className="block text-sm font-bold text-gray-700 mb-1.5">비밀번호</label>
-                    <input id="reg-pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="4~20자"
+                    <input id="reg-pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="8~20자"
                       className="w-full p-4 border-2 border-gray-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all font-bold text-lg outline-none tracking-widest" />
                   </div>
                 </div>
@@ -297,7 +297,7 @@ export default function TherapistManagementModal({ onClose, initialTab }: Therap
                     className="w-full p-4 border-2 border-gray-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all font-bold text-lg outline-none tracking-widest" />
                 </div>
                 <div>
-                  <label htmlFor="pw-new" className="block text-sm font-bold text-gray-700 mb-1.5">새 비밀번호 (4~20자)</label>
+                  <label htmlFor="pw-new" className="block text-sm font-bold text-gray-700 mb-1.5">새 비밀번호 (8~20자)</label>
                   <input id="pw-new" type="password" value={newPw} onChange={(e) => { setNewPw(e.target.value); setPwError(""); }}
                     className="w-full p-4 border-2 border-gray-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all font-bold text-lg outline-none tracking-widest" />
                 </div>
@@ -377,7 +377,7 @@ export default function TherapistManagementModal({ onClose, initialTab }: Therap
               <span className="font-bold text-blue-600">{resettingTherapist.name} ({resettingTherapist.id})</span>의<br />새 비밀번호를 입력하세요.
             </p>
             <label htmlFor="reset-pw" className="sr-only">새 비밀번호</label>
-            <input id="reset-pw" type="password" value={resetPw} onChange={(e) => { setResetPw(e.target.value); setResetError(""); }} placeholder="4~20자 영문/숫자/특수문자"
+            <input id="reset-pw" type="password" value={resetPw} onChange={(e) => { setResetPw(e.target.value); setResetError(""); }} placeholder="8~20자 영문/숫자/특수문자"
               className="w-full p-4 border-2 border-gray-200 bg-white text-gray-900 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-center font-bold tracking-widest outline-none mb-3" autoFocus />
             {resetError && <p className="text-red-500 text-xs font-bold text-center mb-3">{resetError}</p>}
             <div className="flex gap-3">

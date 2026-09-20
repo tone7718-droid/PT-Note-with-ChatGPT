@@ -56,7 +56,8 @@ async function getKey(): Promise<CryptoKey> {
       const key = await crypto.subtle.importKey("raw", hexToBuf(stored), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
       _cachedKey = key; _cachedHex = stored; return key;
     }
-    for (const name of ["pt_local_notes", "pt_draft_note", "pt_auto_backup_v1", "pt_auto_backups"]) {
+    if (Object.keys(window.localStorage).some(key => key.startsWith("pt_editor_draft_v1:"))) throw new Error("임시 저장의 암호화 키가 없습니다. 원본을 보존했습니다.");
+    for (const name of ["pt_local_notes", "pt_draft_note", "pt_auto_backup_v1", "pt_auto_backups", "pt_record_history_v1"]) {
       const raw = window.localStorage.getItem(name);
       if (raw && (!/^[\s]*[\[{]/.test(raw) || raw.includes('"payloadEnc"'))) throw new Error("암호화 키가 없습니다. 기존 기록을 보존하기 위해 저장을 중단했습니다.");
     }

@@ -1,3 +1,4 @@
+import { seedLegacyAdmin, addTransferTarget } from "./testAuth";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_NOTE, type NoteData } from "@/types";
 import * as ds from "@/lib/localDataService";
@@ -10,7 +11,7 @@ const note = (id: string, overrides: Partial<NoteData> = {}): NoteData => ({
   patientName: "테스트 환자", chartNo: "C1", diagnosis: "테스트", ...overrides,
 });
 const account = { uid: "t1", id: "PT-001", name: "테스트 치료사", role: "therapist", resigned: false };
-beforeEach(() => { localStorage.clear(); invalidateEncKeyCache(); });
+beforeEach(async () => { await seedLegacyAdmin(); invalidateEncKeyCache(); });
 afterEach(() => vi.restoreAllMocks());
 describe("storage safety", () => {
   it("retains both concurrent saves", async () => {
@@ -30,6 +31,7 @@ describe("storage safety", () => {
   });
   it("rejects editing that would undo another therapist transfer", async () => {
     const original = await ds.upsertNote(note("a", { therapistUid: "from" }));
+    await addTransferTarget();
     await ds.transferNotesRpc("from", "to", "새 담당자", "PT-002");
     await expect(ds.upsertNote(original, original.savedAt)).rejects.toThrow("다른 창");
     expect((await ds.fetchNotes())[0].therapistUid).toBe("to");

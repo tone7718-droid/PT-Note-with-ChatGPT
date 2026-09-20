@@ -1,3 +1,5 @@
+import { requireMaster } from "@/lib/accessControl";
+import { flushEditor } from "@/lib/editorDraft";
 import type { ImportResult } from "@/lib/backupExchange";
 import { create } from "zustand";
 import type { NoteData } from "@/types";
@@ -42,14 +44,17 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
   isLoading: false,
   error: null,
 
-  selectNote: (id) => set({ selectedNoteId: id }),
-  createNewNote: () => set({ selectedNoteId: null }),
+  selectNote: (id) => {
+    if (id === get().selectedNoteId) return;
+    void flushEditor().then(() => set({ selectedNoteId: id })).catch((err: Error) => set({ error: err.message }));
+  },
+  createNewNote: () => get().selectNote(null),
 
   initSync: () => {
     if (!storageListenerInstalled && typeof window !== "undefined") {
       storageListenerInstalled = true;
       window.addEventListener("storage", (event) => {
-        if ((event.key === "pt_local_notes" || event.key === null) && useAuthStore.getState().therapist) {
+        if ((event.key === "pt_local_notes" || event.key === "pt_local_therapists" || event.key === null) && useAuthStore.getState().therapist) {
           void get().refreshNotes();
         }
       });
@@ -87,6 +92,10 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
       set({ notes: fetchedNotes, error: null });
     } catch (err) {
       set({ error: (err as Error).message });
+      if ((err as Error).message.includes("세션이 만료")) {
+        set({ notes: [], selectedNoteId: null });
+        useAuthStore.getState().setTherapist(null);
+      }
     }
   },
 
@@ -99,34 +108,18 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
       ? { ...data, id: existingId, savedAt: now }
       : { ...data, id: `note-${crypto.randomUUID()}`, savedAt: now };
 
-    // Optimistic Update
-    set((state) => {
-      const updated = existingId
-        ? state.notes.map((n) => (n.id === existingId ? noteToSave : n))
-        : [noteToSave, ...state.notes];
-      return { 
-        notes: updated.sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime()),
-        selectedNoteId: noteToSave.id
-      };
-    });
-
     try {
       const saved = await ds.upsertNote(noteToSave, expectedSavedAt);
-      set((state) => ({
-        notes: state.notes
-          .map((n) => (n.id === saved.id ? saved : n))
-          .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime())
-      }));
       await get().refreshNotes();
       return saved;
     } catch (err) {
-      // rollback
-      get().refreshNotes();
+      await get().refreshNotes();
       throw err;
     }
   },
 
   deleteNotes: async (ids) => {
+    await flushEditor();
     set((state) => ({
       notes: state.notes.filter((n) => !ids.includes(n.id)),
       selectedNoteId: state.selectedNoteId && ids.includes(state.selectedNoteId) ? null : state.selectedNoteId
@@ -156,6 +149,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
   importEncryptedBackupText: (text, passphrase) => get().importData(text, passphrase),
 
   importData: async (json, passphrase) => {
+    await flushEditor();
     const result = await ds.importCompatibleBackup(json, passphrase);
     const [notes, therapists] = await Promise.all([ds.fetchNotes(), ds.fetchTherapists()]);
     set({ notes, error: null });
@@ -165,9 +159,10 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
 
   importBackupText: (text) => get().importData(text),
 
-  getAutoBackups: () => listAutoBackups(),
+  getAutoBackups: () => { requireMaster(); return listAutoBackups(); },
 
   restoreAutoBackup: async (id) => {
+    await flushEditor();
     const found = listAutoBackups().find((backup) => backup.id === id);
     if (!found) throw new Error("자동 백업을 찾을 수 없습니다.");
     const payload = await readAutoBackupPayload(found);

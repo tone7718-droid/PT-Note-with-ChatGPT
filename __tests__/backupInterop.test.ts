@@ -1,8 +1,9 @@
+import { seedLegacyAdmin } from "./testAuth";
 import { beforeEach, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import * as ds from "@/lib/localDataService";
 import { invalidateEncKeyCache } from "@/lib/cryptoService";
-beforeEach(() => { localStorage.clear(); invalidateEncKeyCache(); });
+beforeEach(async () => { await seedLegacyAdmin(); invalidateEncKeyCache(); });
 for (const producer of ["progress", "antigravity", "chatgpt"]) for (const format of ["plain", "encrypted"]) {
   it(`imports actual ${producer} ${format} export`, async () => {
     const json = readFileSync(`${process.cwd()}/__tests__/fixtures/exchange/cross-${producer}-${format}.json`, "utf8");

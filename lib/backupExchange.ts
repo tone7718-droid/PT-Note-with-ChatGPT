@@ -1,3 +1,4 @@
+import { normalizeRom } from "@/lib/romMeasurement";
 import { EMPTY_NOTE, type NoteData, type TherapistRecord } from "@/types";
 import { ANT_CENTER, ANT_PAIRED, POST_CENTER, POST_PAIRED } from "@/components/bodyDiagramShapes";
 export interface ImportResult { notesCount: number; therapistsCount: number; skippedCount: number; duplicateCount: number; }
@@ -36,11 +37,17 @@ export function normalizeExchangeNote(value: unknown): NoteData {
     const t = n.therapist as Record<string, unknown>;
     if (typeof t !== "object" || typeof t.uid !== "string" || typeof t.name !== "string" || !["master", "therapist"].includes(String(t.role))) throw new Error("치료사 정보 오류");
   }
+  for (const field of ["createdBy", "updatedBy"] as const) {
+    if (n[field] != null) result[field] = normalizeExchangeTherapist(n[field]);
+  }
+  for (const field of ["hospitalId", "createdAt", "updatedAt"] as const) {
+    if (n[field] != null) result[field] = text(n[field]);
+  }
   result.painScore = score(n.painScore); result.painScoreAfter = score(n.painScoreAfter);
   if (n.rom != null && !Array.isArray(n.rom)) throw new Error("ROM 형식 오류");
   result.rom = ((n.rom ?? []) as Record<string, unknown>[]).map(r => {
     if (!r || typeof r !== "object") throw new Error("ROM 형식 오류");
-    return { joint: text(r.joint), measuredROM: text(r.measuredROM), normalRange: text(r.normalRange) };
+    return normalizeRom(r);
   });
   const pa = n.painAreas;
   if (pa == null) result.painAreas = [];

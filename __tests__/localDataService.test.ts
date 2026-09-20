@@ -1,3 +1,4 @@
+import { seedLegacyAdmin, addTransferTarget } from "./testAuth";
 import { describe, it, expect, beforeEach } from "vitest";
 import * as ds from "@/lib/localDataService";
 import { listAutoBackups, readAutoBackupPayload } from "@/lib/backupService";
@@ -29,14 +30,14 @@ const sampleNote = (overrides: Partial<NoteData> = {}): NoteData => ({
   ...overrides,
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   // 각 테스트마다 깨끗한 localStorage 로 시작
-  window.localStorage.clear();
+  await seedLegacyAdmin();
   invalidateEncKeyCache();
 });
 
 describe("localDataService — auth", () => {
-  it("first signIn bootstraps default master account (master / 0000)", async () => {
+  it("existing legacy administrator can still sign in", async () => {
     const result = await ds.signIn("master", "0000");
     expect(result.therapist.role).toBe("master");
     expect(result.therapist.id).toBe("master");
@@ -153,7 +154,7 @@ describe("localDataService — notes CRUD", () => {
 
     const result = await ds.importBackupPayload(payload);
 
-    expect(result).toEqual({ notesCount: 1, therapistsCount: 1, skippedCount: 0, duplicateCount: 1 });
+    expect(result).toEqual({ notesCount: 1, therapistsCount: 1, skippedCount: 0, duplicateCount: 2 });
     expect((await ds.fetchNotes()).map((n) => n.id).sort()).toEqual(["existing", "imported"]);
     expect((await ds.fetchTherapists()).some((t) => t.uid === "t1")).toBe(true);
   });
@@ -218,7 +219,7 @@ describe("localDataService — 암호화 백업 (passphrase, 해시 유지)", ()
     expect(encText).not.toContain("pbkdf2v1:"); // 해시도 평문 미노출
 
     // 새 기기 시뮬레이션
-    window.localStorage.clear();
+    await seedLegacyAdmin();
     invalidateEncKeyCache();
     await ds.signIn("master", "0000");
 
@@ -230,6 +231,8 @@ describe("localDataService — 암호화 백업 (passphrase, 해시 유지)", ()
     // 기존 비밀번호 그대로 로그인 가능 — "0000 초기화" 없이 복원됨
     const relogin = await ds.signIn("PT-001", "Secret1!");
     expect(relogin.therapist.id).toBe("PT-001");
+    expect(await ds.fetchNotes()).toEqual([]); // 다른 담당자의 기록은 노출하지 않음
+    await ds.signIn("master", "0000");
     expect((await ds.fetchNotes()).some((n) => n.patientName === "김환자")).toBe(true);
   });
 
@@ -289,6 +292,7 @@ describe("localDataService — note transfer", () => {
       sampleNote({ id: "n3", therapistUid: "uid-B" })
     );
 
+    await addTransferTarget("uid-B", "PT-002", "B-치료사");
     const count = await ds.transferNotesRpc("uid-A", "uid-B", "B-치료사", "PT-002");
     expect(count).toBe(2);
 

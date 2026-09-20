@@ -23,7 +23,17 @@ export interface PainEntry {
   painLevel: PainLevel;
 }
 
+export interface RomMeasurement {
+  joint: string; measuredROM: string; normalRange: string;
+  movement?: string; side?: "" | "left" | "right" | "both";
+  mode?: "" | "AROM" | "PROM"; startAngle?: number | null; endAngle?: number | null;
+}
 export interface NoteData {
+  hospitalId?: string;
+  createdBy?: Therapist | null;
+  createdAt?: string;
+  updatedBy?: Therapist | null;
+  updatedAt?: string;
   id: string;
   savedAt: string;
   patientId?: string; // 내부 환자 식별자 (동명이인 구분용, 저장 시 자동 부여)
@@ -36,7 +46,7 @@ export interface NoteData {
   painScore: number | null;
   painAreas: PainEntry[];
   chiefComplaint: string;
-  rom: { joint: string; measuredROM: string; normalRange: string }[];
+  rom: RomMeasurement[];
   postural: string;
   palpation: string;
   specialTest: string;

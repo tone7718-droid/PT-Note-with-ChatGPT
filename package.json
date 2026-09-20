@@ -12,7 +12,8 @@
     "tauri:build": "tauri build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "test:e2e": "node scripts/e2e.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.2.0",
@@ -46,6 +47,7 @@
     "eslint": "^9",
     "eslint-config-next": "^16.2.10",
     "jsdom": "^29.1.0",
+    "playwright": "1.61.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.5"

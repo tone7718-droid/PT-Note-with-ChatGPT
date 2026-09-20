@@ -6,7 +6,7 @@ export async function withBrowserLock<T>(name: string, action: () => Promise<T>)
   return await navigator.locks.request(name, { mode: "exclusive" }, action);
 }
 const JOURNAL = "pt_pending_write_v1";
-const KEYS = ["pt_local_notes", "pt_local_therapists"];
+const KEYS = ["pt_local_notes", "pt_local_therapists", "pt_record_history_v1"];
 function recoverPendingWrite(): void {
   const raw = localStorage.getItem(JOURNAL);
   if (!raw) return;
@@ -35,6 +35,6 @@ export function commitData(values: Record<string, string>): void {
     localStorage.removeItem(JOURNAL);
   } catch {
     try { recoverPendingWrite(); } catch { /* retry from durable journal on next access */ }
-    throw new Error("가져오기 저장에 실패했습니다. 원본 복구 정보를 보존했습니다. 저장 공간을 확인해주세요.");
+    throw new Error("기록·이력 저장에 실패했습니다. 원본 복구 정보를 보존했습니다. 저장 공간을 확인해주세요.");
   }
 }

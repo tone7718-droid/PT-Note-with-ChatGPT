@@ -1,4 +1,6 @@
 "use client";
+import InitialSetup from "./InitialSetup";
+import { isSetupRequired } from "@/lib/localDataService";
 
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -10,11 +12,14 @@ interface LoginModalProps {
 }
 
 export default function LoginModal({ onClose, hideCancel }: LoginModalProps) {
+  const [setup, setSetup] = useState<boolean | null>(null);
   const signIn = useAuthStore((s) => s.signIn);
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  useEffect(() => { void isSetupRequired().then(setSetup).catch((err: Error) => { setError(err.message); setSetup(false); }); }, []);
+
 
   useEffect(() => {
     if (hideCancel) return;
@@ -47,6 +52,8 @@ export default function LoginModal({ onClose, hideCancel }: LoginModalProps) {
     }
   };
 
+  if (setup) return <InitialSetup onDone={onClose} />;
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
@@ -72,7 +79,7 @@ export default function LoginModal({ onClose, hideCancel }: LoginModalProps) {
                 <button type="button" onClick={onClose}
                   className="flex-[0.4] py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-lg rounded-2xl transition-all">취소</button>
               )}
-              <button type="submit" disabled={loading}
+              <button type="submit" disabled={loading || setup === null}
                 className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-2xl shadow-lg transition-all focus:ring-4 focus:ring-blue-500/40">{loading ? "인증 중..." : "로그인"}</button>
             </div>
           </form>
