@@ -94,14 +94,16 @@ export function patientIdentityConflicts(a: NoteData, b: NoteData): boolean {
   return (["patientName", "birthDate"] as const).some(k => a[k]?.trim() && b[k]?.trim() && a[k].trim() !== b[k].trim());
 }
 export function reconcilePatients(incoming: NoteData[], existing: NoteData[]): void {
-  const pool = [...existing];
+  const remap = new Map<string, string>(), pool = [...existing];
   for (const note of incoming) {
     const chart = note.chartNo?.trim(), name = note.patientName?.trim(), birth = note.birthDate?.trim();
     const match = pool.find(n => n.patientId && !patientIdentityConflicts(note, n) &&
       ((chart && n.chartNo?.trim() === chart) || (!chart && !n.chartNo?.trim() && name && birth && n.patientName?.trim() === name && n.birthDate?.trim() === birth)));
     const old = note.patientId;
-    const collision = old && pool.some(n => n.patientId === old && patientIdentityConflicts(note, n));
-    note.patientId = match?.patientId || (!collision && old) || `patient-${crypto.randomUUID()}`;
+    const mapped = old && (remap.get(old) || old);
+    const collision = mapped && pool.some(n => n.patientId === mapped && patientIdentityConflicts(note, n));
+    note.patientId = match?.patientId || (!collision && mapped) || `patient-${crypto.randomUUID()}`;
+    if (old) remap.set(old, note.patientId);
     pool.push(note);
   }
 }
