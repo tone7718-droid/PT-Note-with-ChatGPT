@@ -1,7 +1,7 @@
 import { currentActor, openSession, closeSession, requireMaster, requireNoteAccess, canAccessNote, hospitalId } from "@/lib/accessControl";
 import { prepareNotesWrite, includeImportedHistory, readHistory, setHistoryOperation } from "@/lib/recordHistory";
 import { withDataLock, commitData } from "@/lib/storageLock";
-import { parseExchangeBackup, reconcilePatients, mergeTherapists, type ImportResult } from "@/lib/backupExchange";
+import { normalizeExchangeNote, patientIdentityConflicts, parseExchangeBackup, reconcilePatients, mergeTherapists, type ImportResult } from "@/lib/backupExchange";
 /**
  * localStorage 기반 데이터 서비스 (현재 운영 중인 단일 데이터 소스)
  *
@@ -206,13 +206,14 @@ function findMatchingPatientId(note: NoteData, pool: NoteData[]): string | null 
   if (chartNo) {
     const match = pool.find((n) => n.patientId && n.chartNo?.trim() === chartNo);
     if (match?.patientId) return match.patientId;
+    return null;
   }
 
   const name = note.patientName?.trim();
   const birth = note.birthDate?.trim();
   if (name && birth) {
     const match = pool.find(
-      (n) => n.patientId && n.patientName?.trim() === name && n.birthDate?.trim() === birth
+      (n) => n.patientId && !n.chartNo?.trim() && n.patientName?.trim() === name && n.birthDate?.trim() === birth
     );
     if (match?.patientId) return match.patientId;
   }
@@ -274,6 +275,7 @@ async function fetchNotesUnlocked(): Promise<NoteData[]> {
 }
 
 async function upsertNoteUnlocked(note: NoteData, expectedSavedAt?: string): Promise<NoteData> {
+  note = normalizeExchangeNote(sanitizePainAreas({ ...note, savedAt: note.savedAt || new Date().toISOString() }));
   const session = currentActor();
   const notes = await ensurePatientIds(await readNotes());
   const existingRecord = notes.find(n => n.id === note.id);
@@ -281,6 +283,12 @@ async function upsertNoteUnlocked(note: NoteData, expectedSavedAt?: string): Pro
   else if (session.role !== "master" && note.therapistUid && note.therapistUid !== session.uid) throw new Error("다른 치료사의 기록을 만들 수 없습니다.");
   if (expectedSavedAt !== undefined && notes.find(n => n.id === note.id)?.savedAt !== expectedSavedAt) {
     throw new Error("다른 창에서 이 기록이 변경되거나 삭제되었습니다. 현재 입력 내용을 복사해 보관한 뒤 기록을 다시 열어주세요.");
+  }
+  if (existingRecord && patientIdentityConflicts(note, existingRecord)) {
+    throw new Error("기존 기록의 환자를 바꿀 수 없습니다. 다른 환자용 복사로 새 기록을 작성하세요. 식별정보 정정은 차트번호를 유지해주세요.");
+  }
+  if (note.patientId && notes.some(n => n.patientId === note.patientId && patientIdentityConflicts(note, n))) {
+    note = { ...note, patientId: undefined };
   }
   const enriched: NoteData = {
     ...note,
@@ -562,16 +570,30 @@ async function importCompatibleBackupUnlocked(json: string, passphrase?: string)
   const ids = new Set(existing.map(n => n.id));
   const incoming = parsed.notes.filter(n => !ids.has(n.id));
   reconcilePatients(incoming, existing);
+  const knownUids = new Set([...therapists, ...parsed.therapists].map(t => t.uid));
+  for (const note of incoming) {
+    const uid = note.therapistUid || note.therapist?.uid;
+    if (!uid) continue; // Legacy unassigned notes remain visible to administrators.
+    if (!knownUids.has(uid)) {
+      parsed.therapists.push({ uid, id: null, name: note.therapist?.name || uid, role: "therapist", resigned: false, passwordHash: "", importUnassigned: true });
+      knownUids.add(uid);
+    }
+  }
+  for (const account of parsed.therapists) {
+    if (account.role === "master" && !therapists.some(t => t.uid === account.uid) && incoming.some(n => (n.therapistUid || n.therapist?.uid) === account.uid)) {
+      account.role = "therapist"; account.importUnassigned = true;
+    }
+  }
   const accounts = mergeTherapists(parsed.therapists, therapists);
-  if (incoming.length || accounts.added.length) {
+  if (incoming.length || accounts.added.length || JSON.parse(plain).history != null) {
     await createCurrentAutoBackupUnlocked();
     const values: Record<string, string> = {};
     if (incoming.length) Object.assign(values, await prepareNotesWrite([...incoming, ...existing]));
     if (accounts.added.length) values[THERAPISTS_KEY] = JSON.stringify([...therapists, ...accounts.added]);
-    await includeImportedHistory(values, JSON.parse(plain).history, new Set(incoming.map(n => n.id!)));
+    await includeImportedHistory(values, JSON.parse(plain).history);
     commitData(values);
   }
-  return { notesCount: incoming.length, therapistsCount: accounts.added.length, skippedCount: parsed.skippedCount,
+  return { notesCount: incoming.length, therapistsCount: accounts.added.length, unassignedTherapistsCount: accounts.added.filter(t => t.importUnassigned).length, skippedCount: parsed.skippedCount,
     duplicateCount: parsed.duplicateCount + parsed.notes.length - incoming.length + accounts.duplicates };
 }
 

@@ -5,7 +5,7 @@ import { beforeEach, afterEach, expect, it } from "vitest";
 import { EMPTY_NOTE, type NoteData } from "@/types";
 import { seedLegacyAdmin } from "./testAuth";
 import { currentActor } from "@/lib/accessControl";
-import { flushEditor, listEditorDrafts, markEditorSaved } from "@/lib/editorDraft";
+import { flushEditor, listEditorDrafts, markEditorSaved, saveEditorDraft } from "@/lib/editorDraft";
 import { useAuthStore } from "@/store/useAuthStore";
 import DraftRecoveryPanel from "@/components/DraftRecoveryPanel";
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -52,4 +52,21 @@ it("does not silently overwrite a saved record when recovering a stale draft", a
   await act(async () => { [...host.querySelectorAll("button")].find(b => b.textContent === "초안 복구")!.click(); });
   expect(api.getValues("savedAt")).toBe("2026-01-01T00:00:00Z");
   expect(localStorage.getItem("pt_local_notes")).toBeNull();
+});
+
+it("deleting an old recovery item preserves this tab's current edits", async () => {
+  await saveEditorDraft("master-default", "a", sample("a"));
+  const own = (await listEditorDrafts("master-default", "a"))[0];
+  const oldKey = own.key.replace(/[^:]+$/, "old-tab");
+  localStorage.setItem(oldKey, localStorage.getItem(own.key)!);
+  await act(async () => { root.render(<Harness data={sample("a")} />); });
+  await until(() => host.textContent!.includes("초안 복구"));
+  await act(async () => { api.setValue("diagnosis", "current unsaved input"); await flushEditor(); });
+  const oldCard = [...host.querySelectorAll("button")].filter(b => b.textContent === "이 초안 삭제")[1];
+  expect(oldCard).toBeTruthy();
+  await act(async () => { oldCard!.click(); });
+  await until(() => host.querySelectorAll("button").length === 2);
+  const drafts = await listEditorDrafts("master-default", "a");
+  expect(drafts).toHaveLength(1); expect(drafts[0].key).toBe(own.key);
+  expect(drafts[0].data.diagnosis).toBe("current unsaved input");
 });

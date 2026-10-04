@@ -67,9 +67,10 @@ describe("storage safety", () => {
     const result = await ds.importCompatibleBackup(JSON.stringify({ notes: [note("a"), note("a"), { id: "bad" }] }));
     expect(result).toMatchObject({ notesCount: 1, duplicateCount: 1, skippedCount: 1 });
   });
-  it("imports hash-less accounts once per login ID", async () => {
+  it("preserves colliding identities without sharing a login ID", async () => {
     const result = await ds.importCompatibleBackup(JSON.stringify({ notes: [], therapists: [account, { ...account, uid: "t2" }] }));
-    expect(result).toMatchObject({ therapistsCount: 1, duplicateCount: 1 });
+    expect(result).toMatchObject({ therapistsCount: 2, duplicateCount: 0, unassignedTherapistsCount: 1 });
+    expect((await ds.fetchTherapists()).find(t => t.uid === "t2")).toMatchObject({ id: null, importUnassigned: true, passwordHash: "" });
     expect((await ds.fetchTherapists()).find(t => t.uid === "t1")?.passwordHash).toBe("");
   });
   it("reconciles foreign patient IDs against the local chart", async () => {

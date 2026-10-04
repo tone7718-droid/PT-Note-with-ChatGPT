@@ -1,4 +1,5 @@
 "use client";
+import { copyNote } from "@/lib/copyNote";
 import DraftRecoveryPanel from "./DraftRecoveryPanel";
 import RecordHistoryPanel from "./RecordHistoryPanel";
 import { markEditorSaved } from "@/lib/editorDraft";
@@ -106,13 +107,10 @@ export default function ProgressNoteForm() {
   }, [selectedNoteId, reset]);
 
   /* 현재 보고 있는 기존 노트를 베이스로 새 노트 시작 */
-  const handleCopyToNewNote = () => {
+  const handleCopyToNewNote = (otherPatient = false) => {
     const current = methods.getValues();
     pendingCopyRef.current = {
-      ...current,
-      id: "",
-      savedAt: "",
-      noteDate: todayLocalISO(),
+      ...copyNote(current, otherPatient),
       therapist: therapist || null,
       therapistUid: therapist?.uid || "",
     };
@@ -318,14 +316,15 @@ export default function ProgressNoteForm() {
               <div className="flex items-center gap-2 text-sm font-medium">
                 {currentNoteId ? (
                   <div className="flex items-center gap-2 ml-auto">
+                    <button type="button" onClick={() => handleCopyToNewNote(true)} className="px-3 py-2 border rounded-full text-xs" title="환자 식별정보와 통증 점수·부위를 비우고 임상 내용을 복사합니다. 확인 후 저장하세요.">다른 환자용 복사</button>
                     <button
                       type="button"
-                      onClick={handleCopyToNewNote}
+                      onClick={() => handleCopyToNewNote()}
                       className="inline-flex items-center gap-1 sm:gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-full shadow-sm text-xs sm:text-sm font-bold transition-colors dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-900 dark:hover:bg-blue-950"
                       title="이 노트를 베이스로 새 노트 시작 (환자정보·치료내용 모두 복사)"
                     >
                       <Copy size={14} />
-                      <span className="hidden sm:inline">복사하여 새 노트</span>
+                      <span className="hidden sm:inline">같은 환자 다음 기록</span>
                       <span className="sm:hidden">복사</span>
                     </button>
                     <span className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-5 sm:py-2.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full shadow-sm text-xs sm:text-sm dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/70">
@@ -339,7 +338,7 @@ export default function ProgressNoteForm() {
                   </div>
                 ) : (
                   <span className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-5 sm:py-2.5 bg-green-50 text-green-800 border border-green-200 rounded-full shadow-sm ml-auto text-xs sm:text-sm dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/70">
-                    {copyFlash ? "📋 노트 복사 완료 — 환자/내용 수정 후 저장" : "✨ 새 노트 작성"}
+                    {copyFlash ? "📋 노트 복사 완료 — 환자정보와 임상 내용 확인 후 저장" : "✨ 새 노트 작성"}
                   </span>
                 )}
               </div>

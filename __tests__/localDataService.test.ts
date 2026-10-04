@@ -154,7 +154,7 @@ describe("localDataService — notes CRUD", () => {
 
     const result = await ds.importBackupPayload(payload);
 
-    expect(result).toEqual({ notesCount: 1, therapistsCount: 1, skippedCount: 0, duplicateCount: 2 });
+    expect(result).toEqual({ notesCount: 1, therapistsCount: 1, skippedCount: 0, duplicateCount: 2, unassignedTherapistsCount: 0 });
     expect((await ds.fetchNotes()).map((n) => n.id).sort()).toEqual(["existing", "imported"]);
     expect((await ds.fetchTherapists()).some((t) => t.uid === "t1")).toBe(true);
   });

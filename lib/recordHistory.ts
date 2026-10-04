@@ -52,17 +52,22 @@ export async function prepareNotesWrite(notes: NoteData[]): Promise<Record<strin
 }
 
 /** Preserve external history as explicitly imported evidence, never as locally authenticated events. */
-export async function includeImportedHistory(values: Record<string, string>, input: unknown, noteIds: Set<string>): Promise<void> {
+export async function includeImportedHistory(values: Record<string, string>, input: unknown): Promise<void> {
   if (input == null) return;
   if (!Array.isArray(input)) throw new Error("백업 수정 이력 형식이 잘못되었습니다.");
+  const entries: HistoryEntry[] = values[KEY] ? JSON.parse(await decryptData(values[KEY])) : await readHistory();
+  const seen = new Set(entries.map(e => JSON.stringify([e.noteId, e.source?.originalId ?? e.id])));
   const imported: HistoryEntry[] = [];
   for (const raw of input) {
-    if (!raw || typeof raw.noteId !== "string" || !noteIds.has(raw.noteId)) continue;
+    if (!raw || typeof raw.noteId !== "string" || !raw.noteId) throw new Error("백업 기록 식별자가 잘못되었습니다.");
     if (typeof raw.id !== "string" || typeof raw.at !== "string" || !Number.isFinite(Date.parse(raw.at)) || typeof raw.action !== "string" || !raw.actor || typeof raw.actor.uid !== "string" || typeof raw.actor.name !== "string" || !["master", "therapist"].includes(raw.actor.role) || !raw.changes || typeof raw.changes !== "object" || Array.isArray(raw.changes)) throw new Error("백업 수정 이력이 손상되어 가져오기를 중단했습니다.");
     for (const change of Object.values(raw.changes)) if (!change || typeof change !== "object" || !("before" in change) || !("after" in change)) throw new Error("백업 변경 내용이 잘못되었습니다.");
-    imported.push({ ...raw, id: crypto.randomUUID(), source: { importedAt: new Date().toISOString(), importedBy: currentActor().uid, originalId: raw.id } });
+    const originalId = typeof raw.source?.originalId === "string" ? raw.source.originalId : raw.id;
+    const key = JSON.stringify([raw.noteId, originalId]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    imported.push({ ...raw, id: crypto.randomUUID(), source: { importedAt: new Date().toISOString(), importedBy: currentActor().uid, originalId } });
   }
   if (!imported.length) return;
-  const entries: HistoryEntry[] = values[KEY] ? JSON.parse(await decryptData(values[KEY])) : await readHistory();
   values[KEY] = await encryptData(JSON.stringify([...entries, ...imported]));
 }

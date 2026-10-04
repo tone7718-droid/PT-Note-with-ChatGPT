@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFormContext } from "react-hook-form";
 import type { NoteData } from "@/types";
 import { useAuthStore } from "@/store/useAuthStore";
-import { listEditorDrafts, saveEditorDraft, removeEditorDraft, registerEditor, type EditorDraft } from "@/lib/editorDraft";
+import { listEditorDrafts, saveEditorDraft, removeEditorDraft, deleteEditorDraft, registerEditor, type EditorDraft } from "@/lib/editorDraft";
 export default function DraftRecoveryPanel({ noteId }: { noteId: string | null }) {
   const { watch, getValues, reset } = useFormContext<NoteData>();
   const uid = useAuthStore(s => s.therapist?.uid);
@@ -53,7 +53,7 @@ export default function DraftRecoveryPanel({ noteId }: { noteId: string | null }
     {drafts.map(draft => <div key={draft.key} className="flex flex-wrap gap-2 items-center p-3 mt-2 bg-amber-50 dark:bg-amber-950 rounded-lg">
       <span>{new Date(draft.savedAt).toLocaleString()} {draft.key === "pt_draft_note" ? "구버전 작성자 미상 초안(관리자 확인 필요)" : "미저장 초안"}</span>
       <button type="button" className="px-2 py-1 border rounded" onClick={() => { recovered.current = draft.key; reset(draft.data); setDrafts([]); }}>초안 복구</button>
-      <button type="button" className="px-2 py-1 border rounded" onClick={() => { if (uid) void removeEditorDraft(uid, noteId, draft.key).then(() => setDrafts(list => list.filter(d => d.key !== draft.key))).catch((err: Error) => setError(err.message)); }}>이 초안 삭제</button>
+      <button type="button" className="px-2 py-1 border rounded" onClick={() => { if (uid) void deleteEditorDraft(uid, noteId, draft.key, draft).then(() => setDrafts(list => list.filter(d => d.key !== draft.key))).catch((err: Error) => setError(err.message)); }}>이 초안 삭제</button>
     </div>)}
   </div>;
 }

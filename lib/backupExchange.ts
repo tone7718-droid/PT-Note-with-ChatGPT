@@ -1,7 +1,7 @@
 import { normalizeRom } from "@/lib/romMeasurement";
 import { EMPTY_NOTE, type NoteData, type TherapistRecord } from "@/types";
 import { ANT_CENTER, ANT_PAIRED, POST_CENTER, POST_PAIRED } from "@/components/bodyDiagramShapes";
-export interface ImportResult { notesCount: number; therapistsCount: number; skippedCount: number; duplicateCount: number; }
+export interface ImportResult { notesCount: number; therapistsCount: number; skippedCount: number; duplicateCount: number; unassignedTherapistsCount?: number; }
 export interface ExchangeBackup {
   app: "PT-NOTE"; version: 3; exportedAt: string; reason: "manual" | "auto";
   notes: NoteData[]; therapists: TherapistRecord[];
@@ -66,7 +66,7 @@ export function normalizeExchangeTherapist(value: unknown): TherapistRecord {
   if (!value || typeof value !== "object") throw new Error("치료사 형식 오류");
   const t = value as Record<string, unknown>;
   if (typeof t.uid !== "string" || !t.uid || typeof t.name !== "string" || !["master", "therapist"].includes(String(t.role)) || (t.id != null && typeof t.id !== "string") || (t.passwordHash != null && typeof t.passwordHash !== "string")) throw new Error("치료사 형식 오류");
-  return { uid: t.uid, name: t.name, id: (t.id ?? null) as string | null, role: t.role as TherapistRecord["role"], resigned: t.resigned === true, passwordHash: (t.passwordHash ?? "") as string };
+  return { uid: t.uid, name: t.name, id: (t.id ?? null) as string | null, role: t.role as TherapistRecord["role"], resigned: t.resigned === true, importUnassigned: t.importUnassigned === true, passwordHash: (t.passwordHash ?? "") as string };
 }
 export function parseExchangeBackup(value: unknown): ExchangeBackup & { skippedCount: number; duplicateCount: number } {
   if (!value || typeof value !== "object") throw new Error("백업 파일 형식이 올바르지 않습니다.");
@@ -87,14 +87,21 @@ export function parseExchangeBackup(value: unknown): ExchangeBackup & { skippedC
   }
   return { app: "PT-NOTE", version: 3, exportedAt: typeof v.exportedAt === "string" ? v.exportedAt : new Date().toISOString(), reason: v.reason === "auto" ? "auto" : "manual", notes, therapists, skippedCount, duplicateCount };
 }
+/** Explicit chart conflicts always outrank demographic similarities. */
+export function patientIdentityConflicts(a: NoteData, b: NoteData): boolean {
+  const ac = a.chartNo?.trim(), bc = b.chartNo?.trim();
+  if (ac && bc) return ac !== bc;
+  return (["patientName", "birthDate"] as const).some(k => a[k]?.trim() && b[k]?.trim() && a[k].trim() !== b[k].trim());
+}
 export function reconcilePatients(incoming: NoteData[], existing: NoteData[]): void {
-  const remap = new Map<string, string>(), pool = [...existing];
+  const pool = [...existing];
   for (const note of incoming) {
     const chart = note.chartNo?.trim(), name = note.patientName?.trim(), birth = note.birthDate?.trim();
-    const match = pool.find(n => n.patientId && ((chart && n.chartNo?.trim() === chart) || (!chart && name && birth && n.patientName?.trim() === name && n.birthDate?.trim() === birth)));
+    const match = pool.find(n => n.patientId && !patientIdentityConflicts(note, n) &&
+      ((chart && n.chartNo?.trim() === chart) || (!chart && !n.chartNo?.trim() && name && birth && n.patientName?.trim() === name && n.birthDate?.trim() === birth)));
     const old = note.patientId;
-    note.patientId = match?.patientId || (old && remap.get(old)) || old || `patient-${crypto.randomUUID()}`;
-    if (old) remap.set(old, note.patientId!);
+    const collision = old && pool.some(n => n.patientId === old && patientIdentityConflicts(note, n));
+    note.patientId = match?.patientId || (!collision && old) || `patient-${crypto.randomUUID()}`;
     pool.push(note);
   }
 }
@@ -102,11 +109,16 @@ export function mergeTherapists(incoming: TherapistRecord[], existing: Therapist
   const uids = new Set(existing.map(t => t.uid)), ids = new Set(existing.filter(t => !t.resigned && t.id).map(t => t.id));
   const added: TherapistRecord[] = []; let duplicates = 0;
   for (const t of incoming) {
-    if (t.role === "master" || uids.has(t.uid) || (t.id && !t.resigned && ids.has(t.id))) { duplicates++; continue; }
+    if (t.role === "master" || uids.has(t.uid)) { duplicates++; continue; }
+    if (t.importUnassigned || (t.id && !t.resigned && ids.has(t.id))) {
+      // A shared login name is not proof of identity. Preserve its UID without login access.
+      added.push({ ...t, role: "therapist", id: null, passwordHash: "", resigned: false, importUnassigned: true });
+      uids.add(t.uid); continue;
+    }
     added.push(t); uids.add(t.uid); if (!t.resigned && t.id) ids.add(t.id);
   }
   return { added, duplicates };
 }
 export function describeImport(result: ImportResult): string {
-  return `가져오기 완료: 노트 ${result.notesCount}건, 치료사 ${result.therapistsCount}명 추가\n중복·기존 관리자 제외 ${result.duplicateCount}건 / 형식 오류 제외 ${result.skippedCount}건`;
+  return `가져오기 완료: 노트 ${result.notesCount}건, 치료사 ${result.therapistsCount}명 추가\n중복·기존 관리자 제외 ${result.duplicateCount}건 / 형식 오류 제외 ${result.skippedCount}건${result.unassignedTherapistsCount ? `\n미배정 치료사 ${result.unassignedTherapistsCount}명: 치료사 관리에서 담당자 확인 후 기록을 배정하세요.` : ""}`;
 }

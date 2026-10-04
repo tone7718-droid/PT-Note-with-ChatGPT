@@ -57,3 +57,21 @@ export async function removeEditorDraft(uid: string, noteId: string | null, reco
     if (recoveredKey?.startsWith(base)) localStorage.removeItem(recoveredKey);
   });
 }
+
+/** Delete only the selected recovery item. Successful-save cleanup is separate. */
+export async function deleteEditorDraft(uid: string, noteId: string | null, key: string, expected?: EditorDraft): Promise<void> {
+  if (currentActor().uid !== uid) throw new Error("임시 저장에 접근할 권한이 없습니다.");
+  await withBrowserLock("pt-note:draft:v2", async () => {
+    if (currentActor().uid !== uid) throw new Error("임시 저장 계정이 변경되었습니다.");
+    const allowed = key.startsWith(prefix(uid, noteId)) || (key === "pt_draft_note" && noteId === null && currentActor().role === "master");
+    if (!allowed) throw new Error("다른 기록의 초안은 삭제할 수 없습니다.");
+    if (expected && key !== "pt_draft_note") {
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const latest = JSON.parse(await decryptData(raw)) as EditorDraft;
+      if (latest.savedAt !== expected.savedAt || JSON.stringify(latest.data) !== JSON.stringify(expected.data)) throw new Error("이 초안에 새 입력이 임시 저장되어 삭제하지 않았습니다. 목록을 다시 열어 확인해주세요.");
+    }
+    if (currentActor().uid !== uid) throw new Error("임시 저장 계정이 변경되었습니다.");
+    localStorage.removeItem(key);
+  });
+}

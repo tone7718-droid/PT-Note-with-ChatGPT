@@ -60,8 +60,27 @@ try {
   await page.waitForFunction(() => document.querySelector('input[name="patientName"]').value === "테스트 환자 A");
   await page.getByRole("button", { name: "초안 복구", exact: true }).first().click();
   assert.equal(await diagnosis.inputValue(), "로그아웃 전 미저장");
+  // Exercise the copy entry points in the production build, using synthetic records.
+  await page.locator('input[name="chartNo"]').fill("A001");
+  await page.locator('textarea[name="assessment"]').fill("복사 평가");
+  await page.locator('textarea[name="plan"]').fill("복사 계획");
+  await page.getByRole("button", { name: "수정 저장", exact: true }).click();
+  await page.getByRole("button", { name: "수정 저장", exact: true }).waitFor();
+  await page.getByRole("button", { name: "다른 환자용 복사", exact: true }).first().click();
+  await page.waitForFunction(() => document.querySelector('input[name="patientName"]').value === "");
+  assert.equal(await page.locator('input[name="chartNo"]').inputValue(), "");
+  assert.equal(await page.locator('textarea[name="assessment"]').inputValue(), "복사 평가");
+  assert.equal(await page.locator('textarea[name="plan"]').inputValue(), "복사 계획");
+  await patient.fill("테스트 환자 B"); await page.locator('input[name="chartNo"]').fill("B002");
+  await page.getByRole("button", { name: "새 노트 저장", exact: true }).click();
+  await page.getByRole("button", { name: "수정 저장", exact: true }).waitFor();
+  await page.getByRole("button", { name: "같은 환자 다음 기록", exact: true }).click();
+  await page.getByRole("button", { name: "새 노트 저장", exact: true }).waitFor();
+  assert.equal(await patient.inputValue(), "테스트 환자 B");
+  assert.equal(await page.locator('textarea[name="assessment"]').inputValue(), "복사 평가");
+  assert.equal(await page.locator('textarea[name="plan"]').inputValue(), "복사 계획");
   assert.deepEqual(errors, [], "page must not raise runtime errors");
-  console.log("PASS: setup, draft-only autosave, reload recovery, record-switch recovery, save history, logout recovery");
+  console.log("PASS: setup, draft-only autosave, reload recovery, record-switch recovery, save history, logout recovery, both patient-copy modes");
 } finally {
   await browser?.close(); await new Promise(resolve => server.close(resolve));
 }
