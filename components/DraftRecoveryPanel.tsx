@@ -48,7 +48,7 @@ export default function DraftRecoveryPanel({ noteId }: { noteId: string | null }
     return () => { active = false; subscription.unsubscribe(); unregister(); clearInterval(timer); window.removeEventListener("beforeunload", unload); document.removeEventListener("visibilitychange", hidden); };
   }, [uid, noteId, watch, getValues]);
   return <div className="print:hidden mx-auto max-w-5xl px-4 py-2 text-sm">
-    <p role="status" className="text-gray-500">{at ? `임시 저장 완료 ${new Date(at).toLocaleTimeString()}` : "새 기록·수정 중 내용은 5초마다 임시 저장됩니다."} 기록 반영은 ‘저장’ 버튼을 눌러주세요.</p>
+    <p role="status" className="text-gray-600 dark:text-gray-300">{at ? `임시 저장 완료 ${new Date(at).toLocaleTimeString()}` : "새 기록·수정 중 내용은 5초마다 임시 저장됩니다."} 기록 반영은 ‘저장’ 버튼을 눌러주세요.</p>
     {error && <p role="alert" className="text-red-600">{error}</p>}
     {drafts.map(draft => <div key={draft.key} className="flex flex-wrap gap-2 items-center p-3 mt-2 bg-amber-50 dark:bg-amber-950 rounded-lg">
       <span>{new Date(draft.savedAt).toLocaleString()} {draft.key === "pt_draft_note" ? "구버전 작성자 미상 초안(관리자 확인 필요)" : "미저장 초안"}</span>

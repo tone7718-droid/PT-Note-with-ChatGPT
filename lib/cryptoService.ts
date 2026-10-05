@@ -1,20 +1,43 @@
 import { withBrowserLock } from "@/lib/storageLock";
-/* ── AES-GCM localStorage 암호화 서비스 ──
+/* ── AES-GCM 암호화 서비스 ──
  *
- * 랜덤 256-bit 키를 최초 실행 시 생성해 별도 localStorage 슬롯에 보관.
+ * 랜덤 256-bit 키를 최초 실행 시 생성해 보관하고,
  * 환자 노트(pt_local_notes)와 자동 백업을 암호화해 평문 노출을 방지.
  * 내보내기/가져오기는 localDataService에서 복호화 후 처리해 서식이 유지됨.
+ *
+ * 키 보관 위치:
+ *  - Tauri 데스크톱: OS 보안 저장소 (Windows 자격 증명 관리자 / macOS
+ *    Keychain / Linux Secret Service) — src-tauri 의 keyring 커맨드 경유.
+ *    기존 localStorage 키는 최초 실행 시 키링으로 자동 이관.
+ *  - 웹/모바일: localStorage 폴백. 이 경우 키가 암호문과 같은 저장소라
+ *    기기(브라우저 프로필) 접근자에게는 보호가 되지 않음 (README 참고).
  *
  * 저장 포맷:
  *   v2:<iv_base64>:<ciphertext_base64>   — 현재 (base64, hex 대비 ~33% 절약)
  *   <iv_hex(24자)>:<ciphertext_hex>       — 레거시 (읽기만 지원, 다음 저장 시 v2 로 전환)
  */
 
+import { isTauri } from "@/lib/isTauri";
+
 const ENC_KEY_STORAGE = "pt_enc_key_v1";
 const V2_PREFIX = "v2:";
 
 let _cachedKey: CryptoKey | null = null;
 let _cachedHex: string | null = null;
+
+async function loadStoredKeyHex(): Promise<string | null> {
+  if (!isTauri()) return window.localStorage.getItem(ENC_KEY_STORAGE);
+  const { invoke } = await import("@tauri-apps/api/core");
+  const fromKeyring = await invoke<string | null>("keyring_get_enc_key");
+  if (fromKeyring) return fromKeyring;
+  const legacy = window.localStorage.getItem(ENC_KEY_STORAGE);
+  if (legacy) { await invoke("keyring_set_enc_key", { value: legacy }); window.localStorage.removeItem(ENC_KEY_STORAGE); }
+  return legacy;
+}
+async function persistKeyHex(hex: string): Promise<void> {
+  if (isTauri()) { const { invoke } = await import("@tauri-apps/api/core"); await invoke("keyring_set_enc_key", { value: hex }); }
+  else window.localStorage.setItem(ENC_KEY_STORAGE, hex);
+}
 
 function bufToHex(buf: Uint8Array<ArrayBuffer>): string {
   return Array.from(buf)
@@ -49,7 +72,7 @@ function b64ToBuf(b64: string): Uint8Array<ArrayBuffer> {
 
 async function getKey(): Promise<CryptoKey> {
   return withBrowserLock("pt-note:key:v1", async () => {
-    const stored = window.localStorage.getItem(ENC_KEY_STORAGE);
+    const stored = await loadStoredKeyHex();
     if (stored) {
       if (!/^[0-9a-f]{64}$/i.test(stored)) throw new Error("암호화 키가 손상되었습니다.");
       if (_cachedKey && _cachedHex === stored) return _cachedKey;
@@ -63,7 +86,7 @@ async function getKey(): Promise<CryptoKey> {
     }
     const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
     const hex = bufToHex(new Uint8Array(await crypto.subtle.exportKey("raw", key)));
-    window.localStorage.setItem(ENC_KEY_STORAGE, hex);
+    await persistKeyHex(hex);
     _cachedKey = key; _cachedHex = hex; return key;
   });
 }

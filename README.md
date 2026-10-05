@@ -46,6 +46,16 @@ Android(Capacitor)도 `applicationId` 가 동일하게 변경되어 기존 설�
 별개 앱으로 설치됩니다. 같은 절차(내보내기 → 새 앱 설치 → 가져오기)로
 데이터를 옮긴 뒤 이전 앱을 제거하세요.
 
+## Security Model (로컬 모드)
+
+- **암호화 키 위치**: 환자 노트·자동 백업·임시 저장은 AES-GCM 으로 암호화됩니다.
+  데스크톱(Tauri) 앱은 암호화 키를 OS 보안 저장소(Windows 자격 증명 관리자 /
+  macOS Keychain / Linux Secret Service)에 보관하며, 구버전이 localStorage 에
+  두었던 키는 최초 실행 시 자동 이관됩니다. 웹 브라우저에서는 구조적 대안이
+  없어 키가 localStorage 에 남습니다 — 이 경우 브라우저 프로필 접근자로부터는
+  보호하지 못하므로 로그인 화면에 안내를 표시합니다.
+- **웹 보안 헤더**: `vercel.json` 에서 CSP·X-Frame-Options 등을 적용합니다.
+
 ## Documentation
 
 - [Tauri release procedure](./docs/tauri-release-guide.md)

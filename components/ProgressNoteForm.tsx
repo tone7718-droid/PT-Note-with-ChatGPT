@@ -266,7 +266,7 @@ export default function ProgressNoteForm() {
         <div 
           className={isGeneratingPdf
             ? "bg-white p-0 m-0 text-black w-[800px] overflow-visible"
-            : "max-w-5xl mx-auto px-3 sm:px-10 py-5 sm:py-10 bg-gray-50/30 min-h-full pb-32 sm:pb-48 scroll-smooth dark:bg-slate-950 print:bg-white print:p-0 print:m-0 print:pb-0"
+            : "max-w-5xl mx-auto px-3 sm:px-10 py-5 sm:py-10 bg-gray-50/30 min-h-full pb-10 sm:pb-12 scroll-smooth dark:bg-slate-950 print:bg-white print:p-0 print:m-0 print:pb-0"
           }
         >
           <div ref={containerRef} className={isGeneratingPdf ? "bg-white px-8 py-10" : "w-full h-full"}>
@@ -277,7 +277,7 @@ export default function ProgressNoteForm() {
                 물리치료 환자 평가지
               </h1>
               
-              <div ref={outputMenuRef} className={`absolute right-0 top-1/2 -translate-y-1/2 ${isGeneratingPdf ? 'hidden' : 'hidden sm:block print:hidden'}`}>
+              <div ref={outputMenuRef} className={`absolute right-0 top-[calc(50%-0.75rem)] -translate-y-1/2 ${isGeneratingPdf ? 'hidden' : 'hidden sm:block print:hidden'}`}>
                 <button
                   type="button"
                   onClick={() => setOutputMenuOpen((v) => !v)}
@@ -391,7 +391,7 @@ export default function ProgressNoteForm() {
 
         {/* ── 고정 저장 & 모바일 PDF 버튼 ── */}
         {!isGeneratingPdf && (
-          <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:bottom-8 sm:right-8 z-50 flex items-center justify-end gap-3 print:hidden">
+          <div className="sticky bottom-0 z-40 flex items-center justify-end gap-3 px-4 sm:px-8 py-3 bg-white/90 dark:bg-slate-950/90 backdrop-blur border-t border-gray-200 dark:border-slate-800 print:hidden">
             <button type="button" onClick={handleDownloadPDF} className="flex-1 sm:hidden flex items-center justify-center gap-2 px-5 py-4 bg-gray-800 hover:bg-gray-900 active:bg-gray-950 text-white font-bold text-lg rounded-2xl shadow-lg transition-all focus:outline-none focus:ring-4 focus:ring-gray-300">
               📄 PDF
             </button>

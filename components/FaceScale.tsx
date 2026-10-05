@@ -37,7 +37,7 @@ export default function FaceScale({ value: controlledValue, onChange }: FaceScal
 
   return (
     <div>
-      <h3 className="text-sm sm:text-base font-bold text-gray-800 mb-3 sm:mb-8">
+      <h3 className="text-sm sm:text-base font-bold text-gray-800 dark:text-gray-100 mb-3 sm:mb-8">
         통증 정도 (VAS 0~10)
       </h3>
 

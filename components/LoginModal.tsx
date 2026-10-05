@@ -1,5 +1,6 @@
 "use client";
 import InitialSetup from "./InitialSetup";
+import WebStorageNotice from "./WebStorageNotice";
 import { isSetupRequired } from "@/lib/localDataService";
 
 import { useState, useEffect } from "react";
@@ -59,6 +60,7 @@ export default function LoginModal({ onClose, hideCancel }: LoginModalProps) {
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
         <div className="p-8">
           <h2 className="text-2xl font-extrabold text-gray-900 mb-6 text-center tracking-tight">치료사 로그인</h2>
+          <WebStorageNotice />
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label htmlFor="login-id" className="block text-sm font-bold text-gray-700 mb-1.5">치료사 ID</label>

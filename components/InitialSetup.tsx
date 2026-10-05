@@ -2,12 +2,14 @@
 import { useState } from "react";
 import { setupInitialMaster } from "@/lib/localDataService";
 import { useAuthStore } from "@/store/useAuthStore";
+import WebStorageNotice from "./WebStorageNotice";
 export default function InitialSetup({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState(""); const [password, setPassword] = useState(""); const [confirm, setConfirm] = useState("");
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   return <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 p-4"><section role="dialog" aria-modal="true" aria-labelledby="setup-title" className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 p-6">
     <h2 id="setup-title" className="text-xl font-bold mb-3">최초 관리자 설정</h2>
     <p className="text-sm mb-4">이 기기의 관리자 ID는 master입니다. 직접 정한 비밀번호로 시작합니다.</p>
+    <WebStorageNotice />
     <form onSubmit={async e => {
       e.preventDefault(); setBusy(true); setError("");
       try {

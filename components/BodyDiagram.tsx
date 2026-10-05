@@ -424,7 +424,7 @@ export default function BodyDiagram({ value, onChange }: BodyDiagramProps) {
         }}
       >
         {/* Anterior */}
-        <div className="relative bg-white rounded-2xl shadow-sm border border-slate-200 p-2 overflow-hidden flex flex-col items-center dark:bg-gray-800 dark:border-gray-700">
+        <div className="relative bg-white rounded-2xl shadow-sm border border-slate-200 p-2 overflow-hidden flex flex-col items-center dark:bg-slate-800 dark:border-slate-700">
           <h2 className="absolute top-3 left-3 font-bold text-slate-300 tracking-widest uppercase text-xs dark:text-slate-600">
             Anterior
           </h2>
@@ -441,7 +441,7 @@ export default function BodyDiagram({ value, onChange }: BodyDiagramProps) {
           </svg>
         </div>
         {/* Posterior */}
-        <div className="relative bg-white rounded-2xl shadow-sm border border-slate-200 p-2 overflow-hidden flex flex-col items-center dark:bg-gray-800 dark:border-gray-700">
+        <div className="relative bg-white rounded-2xl shadow-sm border border-slate-200 p-2 overflow-hidden flex flex-col items-center dark:bg-slate-800 dark:border-slate-700">
           <h2 className="absolute top-3 left-3 font-bold text-slate-300 tracking-widest uppercase text-xs dark:text-slate-600">
             Posterior
           </h2>
@@ -460,7 +460,7 @@ export default function BodyDiagram({ value, onChange }: BodyDiagramProps) {
       </div>
 
       {/* Summary chips */}
-      <div className="w-full mt-4 bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-sm dark:bg-gray-800 dark:border-gray-700">
+      <div className="w-full mt-4 bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-sm dark:bg-slate-800 dark:border-slate-700">
         <div className="text-sm font-bold text-slate-800 mb-2 flex items-center justify-between dark:text-slate-200">
           <div className="flex items-center gap-2">
             <CheckCircle2 size={18} className="text-indigo-600 dark:text-indigo-400" />
@@ -485,7 +485,7 @@ export default function BodyDiagram({ value, onChange }: BodyDiagramProps) {
               return (
                 <div
                   key={painKey(view, region)}
-                  className="flex items-center justify-between bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-lg text-sm dark:bg-slate-900/50 dark:border-gray-700"
+                  className="flex items-center justify-between bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-lg text-sm dark:bg-slate-900/50 dark:border-slate-700"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`w-3 h-3 rounded-full border shrink-0 ${color.tw}`} />
@@ -522,7 +522,7 @@ export default function BodyDiagram({ value, onChange }: BodyDiagramProps) {
           />
           <div
             id="magnifier-overlay"
-            className="fixed z-[160] rounded-full border-4 border-indigo-500 bg-white shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex items-center justify-center overflow-hidden pointer-events-auto dark:bg-gray-800"
+            className="fixed z-[160] rounded-full border-4 border-indigo-500 bg-white shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex items-center justify-center overflow-hidden pointer-events-auto dark:bg-slate-800"
             style={{
               width: LENS_PX,
               height: LENS_PX,
