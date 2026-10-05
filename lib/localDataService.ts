@@ -11,10 +11,10 @@ import { normalizeExchangeNote, patientIdentityConflicts, parseExchangeBackup, r
  * 데이터 키:
  *   - pt_local_notes        : NoteData[] (AES-GCM 암호화 저장)
  *   - pt_local_therapists   : TherapistRecord[]
- *   - pt_local_session      : { uid: string }  // 로그인 세션
- *   - pt_enc_key_v1         : 256-bit AES-GCM 키 (hex)
+ *   - pt_local_session      : { uid, credential }  // 로그인 세션 (sessionStorage)
+ *   - pt_enc_key_v1         : 256-bit AES-GCM 키 (hex) — 웹·모바일만, 데스크톱은 OS 보안 저장소
  *
- * 기본 마스터 계정: id "master" / pw "0000" (앱 첫 실행 시 자동 생성)
+ * 관리자 계정: 첫 실행 시 "최초 관리자 설정"에서 id "master" 의 이름·비밀번호를 직접 정함
  *
  * 클라우드 모드 복귀 시: 새 lib/dataService.ts 작성 + useNoteStore 의 import 변경
  * (이전 클라우드 코드는 git history `14316af` 이전 커밋에서 참조 가능)
@@ -22,6 +22,7 @@ import { normalizeExchangeNote, patientIdentityConflicts, parseExchangeBackup, r
 
 import type { NoteData, TherapistRecord, Therapist } from "@/types";
 import { hashPassword, verifyPassword, isLegacyHash } from "@/lib/hashUtils";
+import { validateNewPassword } from "@/lib/passwordPolicy";
 import {
   decryptData,
   encryptWithPassphrase,
@@ -91,7 +92,9 @@ async function isSetupRequiredUnlocked(): Promise<boolean> {
 }
 async function setupInitialMasterUnlocked(name: string, password: string): Promise<void> {
   if (!await isSetupRequiredUnlocked()) throw new Error("이미 관리자 계정이 설정되어 있습니다.");
-  if (!name.trim() || password.length < 8) throw new Error("관리자 이름과 8자 이상의 비밀번호를 입력해주세요.");
+  if (!name.trim()) throw new Error("관리자 이름을 입력해주세요.");
+  const policyError = validateNewPassword(password);
+  if (policyError) throw new Error(policyError);
   hospitalId();
   write(THERAPISTS_KEY, [{ uid: "master-default", id: "master", name: name.trim(), role: "master", resigned: false, passwordHash: await hashPassword(password) }]);
 }
@@ -385,7 +388,8 @@ async function createTherapistUnlocked(
     throw new Error("이미 사용 중인 ID입니다.");
   }
 
-  if (password.length < 8) throw new Error("비밀번호는 8자 이상이어야 합니다.");
+  const policyError = validateNewPassword(password);
+  if (policyError) throw new Error(policyError);
   const passwordHash = await hashPassword(password);
   const newRecord: TherapistRecord = {
     uid: `therapist-${crypto.randomUUID()}`,
@@ -432,7 +436,8 @@ async function updateTherapistPasswordUnlocked(
   if (!session) throw new Error("로그인 세션이 없습니다.");
 
   const therapists = read<TherapistRecord[]>(THERAPISTS_KEY, []);
-  if (newPassword.length < 8) throw new Error("비밀번호는 8자 이상이어야 합니다.");
+  const policyError = validateNewPassword(newPassword);
+  if (policyError) throw new Error(policyError);
   const passwordHash = await hashPassword(newPassword);
   write(
     THERAPISTS_KEY,
@@ -459,7 +464,8 @@ async function resetTherapistPasswordDbUnlocked(
   if (!target) throw new Error("해당 치료사를 찾을 수 없습니다.");
   if (target.resigned) throw new Error("퇴사 처리된 계정은 재설정할 수 없습니다.");
 
-  if (newPassword.length < 8) throw new Error("비밀번호는 8자 이상이어야 합니다.");
+  const policyError = validateNewPassword(newPassword);
+  if (policyError) throw new Error(policyError);
   const passwordHash = await hashPassword(newPassword);
   write(
     THERAPISTS_KEY,
