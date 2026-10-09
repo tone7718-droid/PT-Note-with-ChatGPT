@@ -21,6 +21,10 @@ fn keyring_get_enc_key() -> Result<Option<String>, String> {
 
 #[tauri::command]
 fn keyring_set_enc_key(value: String) -> Result<(), String> {
+  // AES-256 키(64자리 hex)만 저장 — 잘못된 값으로 기존 키를 덮어써 기록을 못 여는 일을 막는다
+  if value.len() != 64 || !value.bytes().all(|b| b.is_ascii_hexdigit()) {
+    return Err("잘못된 암호화 키 형식입니다.".into());
+  }
   enc_key_entry()?.set_password(&value).map_err(|e| e.to_string())
 }
 

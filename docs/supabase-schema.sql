@@ -103,6 +103,31 @@ CREATE POLICY "therapists_update_self"
     )
   );
 
+-- 위 정책은 본인 행 수정을 허용하므로, 일반 치료사가 자기 role 을 'master' 로
+-- 바꾸는 권한 상승을 트리거로 막는다. uid·auth_user_id·role·resigned 는 master 만
+-- 바꿀 수 있다. auth.uid() 가 없는 service role(Edge Function)·SQL Editor 는 통과.
+CREATE OR REPLACE FUNCTION guard_therapist_privileged_columns()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+  IF (NEW.uid, NEW.auth_user_id, NEW.role, NEW.resigned)
+     IS DISTINCT FROM (OLD.uid, OLD.auth_user_id, OLD.role, OLD.resigned)
+     AND NOT EXISTS (
+       SELECT 1 FROM therapists
+       WHERE auth_user_id = auth.uid() AND role = 'master'
+     ) THEN
+    RAISE EXCEPTION 'Only master can change uid, auth_user_id, role or resigned';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER therapists_guard_privileged_columns
+  BEFORE UPDATE ON therapists
+  FOR EACH ROW EXECUTE FUNCTION guard_therapist_privileged_columns();
+
 CREATE POLICY "therapists_delete_master"
   ON therapists FOR DELETE
   TO authenticated
@@ -201,4 +226,4 @@ BEGIN
   GET DIAGNOSTICS affected = ROW_COUNT;
   RETURN affected;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
